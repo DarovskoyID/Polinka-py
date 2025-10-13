@@ -1,0 +1,403 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>500</width>
+    <height>800</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>MainWindow</string>
+  </property>
+  <widget class="QWidget" name="Main">
+   <layout class="QVBoxLayout" name="verticalLayout_3">
+    <property name="spacing">
+     <number>0</number>
+    </property>
+    <property name="leftMargin">
+     <number>0</number>
+    </property>
+    <property name="topMargin">
+     <number>0</number>
+    </property>
+    <property name="rightMargin">
+     <number>0</number>
+    </property>
+    <property name="bottomMargin">
+     <number>0</number>
+    </property>
+    <item>
+     <widget class="QWidget" name="Tabs" native="true">
+      <property name="styleSheet">
+       <string notr="true">#Tabs{
+background-color: rgb(13, 13, 13);
+}
+QPushButton {
+    background-color: #0f0f1a;
+    color: #00f0ff;
+    border: 2px solid #00f0ff;
+    border-radius: 12px;
+    padding: 8px 16px;
+    font-family: &quot;Segoe UI&quot;, &quot;Roboto&quot;, sans-serif;
+    font-size: 14px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+QPushButton:hover {
+    background-color: #1a1a2e;
+    border: 2px solid #00ffee;
+    color: #ffffff;
+}
+
+QPushButton:pressed {
+    background-color: #00f0ff;
+    color: #0f0f1a;
+    border: 2px solid #00f0ff;
+}
+</string>
+      </property>
+      <layout class="QHBoxLayout" name="horizontalLayout_2">
+       <item>
+        <widget class="QPushButton" name="Home">
+         <property name="text">
+          <string>Главная</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="Settings">
+         <property name="text">
+          <string>Настройки</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="Logs">
+         <property name="text">
+          <string>ЛОГИ</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <widget class="QWidget" name="SettingsTab" native="true">
+      <property name="styleSheet">
+       <string notr="true">#SettingsTab{
+	background-color: rgb(30, 37, 47);
+}
+QLabel {
+color: rgb(255, 255, 255);
+}</string>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout">
+       <property name="spacing">
+        <number>0</number>
+       </property>
+       <property name="leftMargin">
+        <number>0</number>
+       </property>
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <property name="rightMargin">
+        <number>0</number>
+       </property>
+       <property name="bottomMargin">
+        <number>0</number>
+       </property>
+       <item>
+        <widget class="QLabel" name="labelOpenAi">
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>30</height>
+          </size>
+         </property>
+         <property name="styleSheet">
+          <string notr="true"> font: 14pt &quot;Segoe UI&quot;;  </string>
+         </property>
+         <property name="lineWidth">
+          <number>1</number>
+         </property>
+         <property name="text">
+          <string>Ключ AI</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="AIKeyOpenAi">
+         <property name="styleSheet">
+          <string notr="true">QLineEdit {
+    background-color: rgba(0, 30, 60, 180); /* тёмно-синий фон с прозрачностью */
+    color: #00ffff;                         /* ярко-голубой текст */
+    border: 2px solid #00bfff;              /* яркий синий контур */
+    border-radius: 10px;                     /* скруглённые углы */
+    padding: 5px 10px;                       /* внутренние отступы */
+    font: 14pt &quot;Segoe UI&quot;;                   /* современный шрифт */
+}
+
+QLineEdit:focus {
+    border: 2px solid #00ffff;              /* подсветка при фокусе */
+    background-color: rgba(0, 50, 100, 200); /* чуть ярче фон */
+    color: #ffffff;                          /* текст становится белым при фокусе */
+}
+
+QLineEdit::placeholder {
+    color: #00bfff;                          /* цвет плейсхолдера */
+    font-style: italic;
+}
+</string>
+         </property>
+         <property name="text">
+          <string/>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="label_choose">
+         <property name="styleSheet">
+          <string notr="true"> font: 14pt &quot;Segoe UI&quot;;  </string>
+         </property>
+         <property name="text">
+          <string>ASR(automatic speech recognition) AI</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QWidget" name="widget" native="true">
+         <property name="styleSheet">
+          <string notr="true">QPushButton {
+    background-color: #111111;        /* почти чёрный фон */
+    color: #ffffff;                   /* белый текст */
+    border: 2px solid #1E90FF;        /* синие акценты */
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+/* Наведение */
+QPushButton:hover {
+    background-color: #1E90FF;        /* подсветка синим */
+    color: #ffffff;                   /* белый текст */
+    border: 2px solid #1E90FF;
+}
+
+/* Нажатие */
+QPushButton:pressed {
+    background-color: #0f65b5;        /* более тёмный синий */
+    border: 2px solid #0f65b5;
+}
+
+/* Неактивная кнопка */
+QPushButton:disabled {
+    background-color: #1a1a1a;        /* тёмно-серый */
+    border: 2px solid #333333;        /* тусклая рамка */
+    color: #777777;                   /* серый текст */
+}
+</string>
+         </property>
+         <layout class="QHBoxLayout" name="horizontalLayout">
+          <property name="spacing">
+           <number>5</number>
+          </property>
+          <property name="leftMargin">
+           <number>5</number>
+          </property>
+          <property name="topMargin">
+           <number>0</number>
+          </property>
+          <property name="rightMargin">
+           <number>5</number>
+          </property>
+          <property name="bottomMargin">
+           <number>0</number>
+          </property>
+          <item>
+           <widget class="QPushButton" name="vosk_choose">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="text">
+             <string>VOSK</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="whisper_choose">
+            <property name="enabled">
+             <bool>true</bool>
+            </property>
+            <property name="text">
+             <string>WHISPER</string>
+            </property>
+            <property name="checkable">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="label_basePhrase">
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>30</height>
+          </size>
+         </property>
+         <property name="styleSheet">
+          <string notr="true"> font: 14pt &quot;Segoe UI&quot;;  </string>
+         </property>
+         <property name="text">
+          <string>Базовые фразы</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPlainTextEdit" name="BaseFrases">
+         <property name="styleSheet">
+          <string notr="true">background-color: rgb(0, 0, 0);
+color: rgb(255, 255, 255);</string>
+         </property>
+         <property name="plainText">
+          <string>{
+lddld:fddd
+}</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <widget class="QWidget" name="LogsTab" native="true">
+      <layout class="QGridLayout" name="gridLayout_3">
+       <property name="leftMargin">
+        <number>0</number>
+       </property>
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <property name="rightMargin">
+        <number>0</number>
+       </property>
+       <property name="bottomMargin">
+        <number>0</number>
+       </property>
+       <property name="spacing">
+        <number>0</number>
+       </property>
+       <item row="0" column="0">
+        <widget class="QPlainTextEdit" name="FullLogs">
+         <property name="styleSheet">
+          <string notr="true">background-color: rgb(0, 0, 0);
+color: rgb(255, 255, 255);</string>
+         </property>
+         <property name="plainText">
+          <string>gfhfhfhfhfhfhdfjdsjd</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <widget class="QWidget" name="MainTab" native="true">
+      <property name="enabled">
+       <bool>true</bool>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_2" stretch="0,10,0,3">
+       <property name="spacing">
+        <number>0</number>
+       </property>
+       <property name="leftMargin">
+        <number>0</number>
+       </property>
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <property name="rightMargin">
+        <number>0</number>
+       </property>
+       <property name="bottomMargin">
+        <number>0</number>
+       </property>
+       <item>
+        <widget class="Line" name="line">
+         <property name="styleSheet">
+          <string notr="true">background-color: rgb(58, 58, 58);</string>
+         </property>
+         <property name="orientation">
+          <enum>Qt::Orientation::Horizontal</enum>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QWidget" name="Animation" native="true">
+         <property name="styleSheet">
+          <string notr="true">background-color: rgb(30, 37, 47);</string>
+         </property>
+         <layout class="QGridLayout" name="gridLayout_2"/>
+        </widget>
+       </item>
+       <item>
+        <widget class="Line" name="line_2">
+         <property name="styleSheet">
+          <string notr="true">background-color: rgb(58, 58, 58);</string>
+         </property>
+         <property name="orientation">
+          <enum>Qt::Orientation::Horizontal</enum>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QWidget" name="logs" native="true">
+         <layout class="QGridLayout" name="gridLayout">
+          <property name="leftMargin">
+           <number>0</number>
+          </property>
+          <property name="topMargin">
+           <number>0</number>
+          </property>
+          <property name="rightMargin">
+           <number>0</number>
+          </property>
+          <property name="bottomMargin">
+           <number>0</number>
+          </property>
+          <property name="spacing">
+           <number>0</number>
+          </property>
+          <item row="0" column="0">
+           <widget class="QPlainTextEdit" name="SmallLogs">
+            <property name="styleSheet">
+             <string notr="true">background-color: rgb(0, 0, 0);
+color: rgb(255, 255, 255);</string>
+            </property>
+            <property name="plainText">
+             <string>not initilize</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
