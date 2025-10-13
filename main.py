@@ -1,26 +1,27 @@
 import asyncio
+from time import sleep
+
+from PySide6.QtCore import QEasingCurve, QVariantAnimation, QPropertyAnimation, QSequentialAnimationGroup, QTimer
+from PySide6.QtGui import QColor
 from qasync import QEventLoop
 
 from PySide6.QtWidgets import QApplication
 
 from SRC.RecordMicro import record_seconds
+from SRC.WakeWord import WakeWord
 from SRC.Whisper import Whisper
 from UI.Sources.MainWindow import MainWindow
 
 WHISPER_MODEL_PATH = "./models/whisper-model"
 ANIMATION_PATH = "./UI/Raw/animation.gif"
 
-async def Recog(window, whisperASR):
-    loop = asyncio.get_event_loop()
-
-    # Тяжёлая синхронная работа выполняется в отдельном потоке
-    path, sr = await loop.run_in_executor(None, record_seconds)
-    result = await loop.run_in_executor(None, whisperASR.Recognize, path)
+def Recog(window, whisperASR):
+    path, sr = record_seconds()
+    result = whisperASR.Recognize(path)
 
     tmp = result + '\n'
     print(tmp)
 
-    # Обновляем GUI (если PushText обычная функция PyQt)
     window.PushText(tmp)
 
 def main():
@@ -31,9 +32,14 @@ def main():
     window = MainWindow(ANIMATION_PATH)
     window.show()
     whisperASR = Whisper(WHISPER_MODEL_PATH)
+    wakeword = WakeWord(["jarvis"],
+                        [
+                            (Recog, (window, whisperASR, ), {}),
 
-    # Запуск Recog в фоне
-    asyncio.ensure_future(Recog(window, whisperASR))
+                        ],
+                        window.ui.Animation)
+
+    wakeword.StartListning()
 
     with loop:
         loop.run_forever()

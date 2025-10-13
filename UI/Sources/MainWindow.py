@@ -33,3 +33,6 @@ class MainWindow(QMainWindow):
 
     def PushText(self, text):
         self.ui.SmallLogs.insertPlainText(text)
+
+    def GetAnimationLabel(self):
+        return self.label
