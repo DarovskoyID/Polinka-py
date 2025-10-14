@@ -10,7 +10,6 @@ class Whisper():
         result = ""
         self.segments, self.info = self.model.transcribe(
             audioPath,
-            language="ru",
             task="transcribe",
             beam_size=5,
             vad_filter=True

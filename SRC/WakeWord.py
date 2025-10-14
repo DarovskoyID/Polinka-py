@@ -3,9 +3,15 @@ import pyaudio
 import struct
 import threading
 
+
 class WakeWord:
-    def __init__(self, wakeWords=["jarvis"], callBacks=None, animationWidget=None):
-        self.porcupine = pvporcupine.create(keywords=wakeWords)
+    def __init__(self, wakeWords=["jarvis"], keywordPaths = [], callBacks=None, animationWidget=None):
+        self.porcupine = pvporcupine.create(
+            keywords=wakeWords,
+            keyword_paths=keywordPaths,
+            access_key="uHmVJfEIx6ynqIPc4DeQAiLClCio/4FtDwkqUu3p2yehntyj3USUYQ=="
+        )
+        self.keywordPaths = keywordPaths
         self.wakeWords = wakeWords
         self.callBacks = callBacks or []  # список [(func, args, kwargs)]
         self.animationWidget = animationWidget
@@ -42,14 +48,12 @@ class WakeWord:
             frames_per_buffer=self.porcupine.frame_length
         )
 
-        print("Listening for wake word...")
         while self.flagListing:
             pcm = self.stream.read(self.porcupine.frame_length, exception_on_overflow=False)
             pcm = struct.unpack_from("h" * self.porcupine.frame_length, pcm)
 
             keyword_index = self.porcupine.process(pcm)
             if keyword_index >= 0:
-                print("Wake word detected!")
                 self._callFunctions()
 
 
@@ -59,5 +63,4 @@ class WakeWord:
             self.thread.start()
 
     def StopListning(self):
-        print("Listening stoped")
         self.flagListing = False
