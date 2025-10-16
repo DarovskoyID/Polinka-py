@@ -1,41 +1,27 @@
 import warnings
-
 warnings.filterwarnings("ignore", category=UserWarning, module="ctranslate2")
+
 import asyncio
 from qasync import QEventLoop
-
+from SRC.SpeechController import SpeechController
 from PySide6.QtWidgets import QApplication
 
-from SRC.RecordMicro import record_seconds
-from SRC.WakeWord import WakeWord
-from SRC.Whisper import Whisper
+
 from UI.Sources.MainWindow import MainWindow
 
 
+ACCESS_KEY = "uHmVJfEIx6ynqIPc4DeQAiLClCio/4FtDwkqUu3p2yehntyj3USUYQ=="
 
-
-
-
+TTS_MODEL_PATH = "./models/piper-model/ru_RU-irina-medium.onnx"
 WHISPER_MODEL_PATH = "./models/whisper-model"
 WAKEWORD_POLINA_MODEL_PATH = "./models/Polina_en_windows_v3_0_0.ppn"
+KOKORO_MODEL_PATH = "./models/kokoro-model/kokoro-v1.0.int8.onnx"
+KOKORO_VOICES_MODEL_PATH = "./models/kokoro-model/voices-v1.0.bin"
 ANIMATION_PATH = "./UI/Raw/animation.gif"
 LOG_FILE = "./log.txt"
 
-def Recog(window, whisperASR, filelog):
-    path, sr = record_seconds()
-    result = whisperASR.Recognize(path)
-
-    tmp = result + '\n'
-    print(tmp)
-    filelog.write(tmp)
-    window.PushText(tmp)
-
-def WakeWordDetected(window, filelog):
-    infoText = "!++++++++++++ \n"
-    filelog.write(infoText)
-    window.PushText(infoText)
-
 def main():
+
     app = QApplication([])
     loop = QEventLoop(app)
     asyncio.set_event_loop(loop)
@@ -45,19 +31,18 @@ def main():
     try:
         window = MainWindow(ANIMATION_PATH, LOG_FILE)
         window.show()
-
-        whisperASR = Whisper(WHISPER_MODEL_PATH)
-        wakeword = WakeWord(
-            [], [WAKEWORD_POLINA_MODEL_PATH],
-            [
-                (WakeWordDetected, (window, filelog), {}),
-                (Recog, (window, whisperASR, filelog), {}),
-            ],
-            window.ui.Animation
+        spechController = SpeechController(
+            WHISPER_MODEL_PATH,
+            WAKEWORD_POLINA_MODEL_PATH,
+            KOKORO_MODEL_PATH,
+            KOKORO_VOICES_MODEL_PATH,
+            TTS_MODEL_PATH,
+            ACCESS_KEY,
+            window,
+            filelog
         )
 
-        wakeword.StartListning()
-
+        spechController.Start()
         with loop:
             loop.run_forever()
     finally:

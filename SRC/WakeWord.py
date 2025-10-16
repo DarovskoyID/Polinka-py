@@ -5,16 +5,15 @@ import threading
 
 
 class WakeWord:
-    def __init__(self, wakeWords=["jarvis"], keywordPaths = [], callBacks=None, animationWidget=None):
+    def __init__(self, wakeWords=["jarvis"], keywordPaths = [], callBacks=None, key = ""):
         self.porcupine = pvporcupine.create(
             keywords=wakeWords,
             keyword_paths=keywordPaths,
-            access_key="uHmVJfEIx6ynqIPc4DeQAiLClCio/4FtDwkqUu3p2yehntyj3USUYQ=="
+            access_key=key
         )
         self.keywordPaths = keywordPaths
         self.wakeWords = wakeWords
         self.callBacks = callBacks or []  # список [(func, args, kwargs)]
-        self.animationWidget = animationWidget
         self.flagListing = True
         self.thread = None
 
