@@ -19,7 +19,7 @@ class SpeechController:
         self.KOKORO_MODEL_PATH = KOKORO_MODEL_PATH
         self.KOKORO_VOICES_MODEL_PATH = KOKORO_VOICES_MODEL_PATH
         self.whisperASR = Whisper(WHISPER_MODEL_PATH)
-        self.wakeword = WakeWord(
+        self.wakeword = WakeWord(window, filelog,
             [], [WAKEWORD_POLINA_MODEL_PATH],
             [
                 (self.WakeWordDetected, (window, filelog), {}),
