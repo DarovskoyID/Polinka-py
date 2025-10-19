@@ -109,6 +109,7 @@ class WakeWord:
                 self.stop_event.set()
                 self.stop_event = threading.Event()
 
+                self.filelog.write(f"[WakeWord] New session {current_session} ({event})\n")
                 self.window.PushText(f"[WakeWord] New session {current_session} ({event})\n")
 
                 # запускаем новую цепочку выполнения
@@ -126,6 +127,7 @@ class WakeWord:
             if not self.flagListing:
                 return
             if session_id != self.session_id:
+                self.filelog.write(f"[WakeWord] Session {session_id} cancelled\n")
                 self.window.PushText(f"[WakeWord] Session {session_id} cancelled\n")
                 return
 

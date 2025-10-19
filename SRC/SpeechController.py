@@ -25,6 +25,7 @@ class SpeechController:
         self.filelog = filelog
         self.window = window
 
+
         self.whisperASR = Whisper(WHISPER_MODEL_PATH)
         self.voice = piper.PiperVoice.load(TTS_MODEL_PATH)
 
@@ -94,6 +95,8 @@ class SpeechController:
                 i = 0
                 for line in f:
                     i += 1
+                    self.filelog.write(f"[ChooseTicket] ticket title said: {line}\n")
+                    self.window.PushText(f"[ChooseTicket] ticket title said: {line}\n")
                     chunks = []
                     for audio_chunk in self.voice.synthesize(line):
                         if stop_event and stop_event.is_set():
@@ -107,6 +110,8 @@ class SpeechController:
                     while sd.get_stream().active:
                         if stop_event and stop_event.is_set():
                             self.ticket = i
+                            self.filelog.write(f"[ChooseTicket] ticket chosen: {self.ticket}\n")
+                            self.window.PushText(f"[ChooseTicket] ticket chosen: {self.ticket}\n")
                             sd.stop()
                             return
 
@@ -121,7 +126,6 @@ class SpeechController:
             return
 
         try:
-            self.window.PushText(f"ticket: {self.ticket}\n")
             with open(fileTickets, "r", encoding="utf-8", errors="ignore") as f:
                 lines = f.readlines()
                 if self.ticket - 1 >= len(lines):
@@ -129,6 +133,9 @@ class SpeechController:
                 line = lines[self.ticket - 1].strip()
                 if not line:
                     return
+
+            self.filelog.write(f"[SayTicket] ticket dictated: {self.ticket}\n")
+            self.window.PushText(f"[SayTicket] ticket dictated: {self.ticket}\n")
 
             chunks = []
             for audio_chunk in self.voice.synthesize(line):
