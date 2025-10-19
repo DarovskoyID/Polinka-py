@@ -10,8 +10,6 @@ import piper
 class SpeechController:
     def __init__(self, WHISPER_MODEL_PATH,
                  WAKEWORD_POLINA_MODEL_PATH,
-                 KOKORO_MODEL_PATH,
-                 KOKORO_VOICES_MODEL_PATH,
                  TTS_MODEL_PATH,
                  ACCESS_KEY,
                  window,
@@ -26,9 +24,6 @@ class SpeechController:
 
         self.filelog = filelog
         self.window = window
-
-        self.KOKORO_MODEL_PATH = KOKORO_MODEL_PATH
-        self.KOKORO_VOICES_MODEL_PATH = KOKORO_VOICES_MODEL_PATH
 
         self.whisperASR = Whisper(WHISPER_MODEL_PATH)
         self.voice = piper.PiperVoice.load(TTS_MODEL_PATH)

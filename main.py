@@ -37,8 +37,6 @@ def main():
         spechController = SpeechController(
             WHISPER_MODEL_PATH,
             WAKEWORD_POLINA_MODEL_PATH,
-            KOKORO_MODEL_PATH,
-            KOKORO_VOICES_MODEL_PATH,
             TTS_MODEL_PATH,
             ACCESS_KEY,
             window,
