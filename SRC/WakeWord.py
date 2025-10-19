@@ -109,26 +109,30 @@ class WakeWord:
                 self.stop_event.set()
                 self.stop_event = threading.Event()
 
-                self.window.PushText(f"[WakeWord] New session {current_session}\n")
+                self.window.PushText(f"[WakeWord] New session {current_session} ({event})\n")
 
                 # запускаем новую цепочку выполнения
                 threading.Thread(
                     target=self._execute_callback_chain,
-                    args=(current_session,),
+                    args=(current_session, event),
                     daemon=True
                 ).start()
 
     # ===================================================================
     # Выполнение последовательной цепочки коллбэков
     # ===================================================================
-    def _execute_callback_chain(self, session_id):
+    def _execute_callback_chain(self, session_id, event_type):
         for func, args, kwargs in self.callBacks:
             if not self.flagListing:
                 return
-            # если пришёл новый wakeword — прерываем старую сессию
             if session_id != self.session_id:
                 self.window.PushText(f"[WakeWord] Session {session_id} cancelled\n")
                 return
+
+            # добавляем тип события в kwargs
+            kwargs = dict(kwargs)
+            kwargs["event_type"] = event_type
+
             self._safe_callback(func, args, kwargs, self.stop_event)
 
     # ===================================================================

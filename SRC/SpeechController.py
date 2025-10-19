@@ -46,22 +46,24 @@ class SpeechController:
     # =============================================================
     # WakeWord
     # =============================================================
-    def WakeWordDetected(self, stop_event=None):
+    def WakeWordDetected(self, stop_event=None, event_type=None):
         if stop_event and stop_event.is_set():
             return
 
-        # Сброс состояния при новом wakeword
-        self.result = ""
-        self.answer = ""
+        if event_type == "keyword_detected":
+            infoText = "!++++++++++++ \n"
+        elif event_type == "loud_sound":
+            infoText = "!------ Пик! ------ \n"
+        else:
+            infoText = f"!??? event={event_type}\n"
 
-        infoText = "!++++++++++++ \n"
         self.filelog.write(infoText)
         self.window.PushText(infoText)
 
     # =============================================================
     # Распознавание речи
     # =============================================================
-    def Recog(self, whisperASR, stop_event=None):
+    def Recog(self, whisperASR, stop_event=None, event_type=None):
         if stop_event and stop_event.is_set():
             return
 
@@ -80,7 +82,7 @@ class SpeechController:
     # =============================================================
     # Обработка текста
     # =============================================================
-    def ComputeSentence(self, stop_event=None):
+    def ComputeSentence(self, stop_event=None, event_type=None):
         if stop_event and stop_event.is_set():
             return
 
@@ -97,7 +99,7 @@ class SpeechController:
     # =============================================================
     # Озвучивание
     # =============================================================
-    def ToSpeech(self, stop_event=None):
+    def ToSpeech(self, stop_event=None, event_type=None):
         if stop_event and stop_event.is_set():
             return
 
