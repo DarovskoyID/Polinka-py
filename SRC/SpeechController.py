@@ -15,10 +15,14 @@ class SpeechController:
                  TTS_MODEL_PATH,
                  ACCESS_KEY,
                  window,
-                 filelog):
+                 filelog,
+                 fileTitles,
+                 fileTickets
+                 ):
 
         self.result = ""        # <── обязательно
         self.answer = ""        # <── обязательно
+        self.ticket = None
 
         self.filelog = filelog
         self.window = window
@@ -39,6 +43,8 @@ class SpeechController:
                 (self.Recog, (self.whisperASR,), {}),
                 (self.ComputeSentence, (), {}),
                 (self.ToSpeech, (), {}),
+                (self.ChooseTicket, (fileTitles,), {}),
+                (self.SayTicket , (fileTickets,), {}),
             ],
             ACCESS_KEY
         )
@@ -67,6 +73,9 @@ class SpeechController:
         if stop_event and stop_event.is_set():
             return
 
+        if event_type == "loud_sound":
+            return
+
         path, sr = record_seconds()
         if stop_event and stop_event.is_set():
             return
@@ -80,10 +89,85 @@ class SpeechController:
         self.window.PushText(tmp)
 
     # =============================================================
+    # Выбор билета
+    # =============================================================
+    def ChooseTicket(self, fileTitles, stop_event=None, event_type=None):
+        if stop_event and stop_event.is_set():
+            return
+        if event_type == "loud_sound" and not self.ticket:
+            with open(fileTitles, "r", encoding="utf-8") as f:
+                i = 0
+                for line in f:
+                    i += 1
+                    chunks = []
+                    for audio_chunk in self.voice.synthesize(line):
+                        if stop_event and stop_event.is_set():
+                            return
+                        chunks.append(audio_chunk.audio_float_array)
+
+                    if not chunks:
+                        return
+                    wav_array_float = np.concatenate(chunks)
+                    sd.play(wav_array_float, samplerate=self.voice.config.sample_rate)
+                    while sd.get_stream().active:
+                        if stop_event and stop_event.is_set():
+                            self.ticket = i
+                            sd.stop()
+                            return
+
+    # =============================================================
+    # Диктовка билета
+    # =============================================================
+    def SayTicket(self, fileTickets, stop_event=None, event_type=None):
+        if stop_event and stop_event.is_set():
+            return
+
+        if event_type != "loud_sound" or not self.ticket:
+            return
+
+        try:
+            self.window.PushText(f"ticket: {self.ticket}\n")
+            with open(fileTickets, "r", encoding="utf-8", errors="ignore") as f:
+                lines = f.readlines()
+                if self.ticket - 1 >= len(lines):
+                    return
+                line = lines[self.ticket - 1].strip()
+                if not line:
+                    return
+
+            chunks = []
+            for audio_chunk in self.voice.synthesize(line):
+                if stop_event and stop_event.is_set():
+                    self.ticket = None
+                    return
+                chunks.append(audio_chunk.audio_float_array)
+
+            if not chunks:
+                return
+
+            wav_array_float = np.concatenate(chunks)
+            sd.play(wav_array_float, samplerate=self.voice.config.sample_rate)
+
+            while sd.get_stream().active:
+                if stop_event and stop_event.is_set():
+                    self.ticket = None
+                    sd.stop()
+                    return
+
+            self.ticket = None
+
+        except Exception as e:
+            self.filelog.write(f"SayTicket error: {e}\n")
+            self.window.PushText(f"SayTicket error: {e}\n")
+
+    # =============================================================
     # Обработка текста
     # =============================================================
     def ComputeSentence(self, stop_event=None, event_type=None):
         if stop_event and stop_event.is_set():
+            return
+
+        if event_type == "loud_sound":
             return
 
         if not hasattr(self, "result") or not self.result:
@@ -103,13 +187,14 @@ class SpeechController:
         if stop_event and stop_event.is_set():
             return
 
+        if event_type == "loud_sound":
+            return
+
         if not hasattr(self, "answer") or not self.answer:
             self.filelog.write("[ToSpeech] Пропуск — нет ответа")
             self.window.PushText("[ToSpeech] Пропуск — нет ответа")
             return
-
         self.window.PushText("Полина: " + self.answer + "\n")
-
         chunks = []
         for audio_chunk in self.voice.synthesize(self.answer):
             if stop_event and stop_event.is_set():
@@ -118,7 +203,6 @@ class SpeechController:
 
         if not chunks:
             return
-
         wav_array_float = np.concatenate(chunks)
         sd.play(wav_array_float, samplerate=self.voice.config.sample_rate)
         while sd.get_stream().active:

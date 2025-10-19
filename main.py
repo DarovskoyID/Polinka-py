@@ -21,7 +21,7 @@ ANIMATION_PATH = "./UI/Raw/animation.gif"
 LOG_FILE = "./log.txt"
 JSON_PHRASES_FILE = "./commands.json"
 BILETS_NAME_FILE = "./billetsTitles.txt"
-BILETS_FILE = "./billets.txt"
+BILETS_FILE = "./bilets.txt"
 
 def main():
 
@@ -44,8 +44,8 @@ def main():
             window,
             filelog,
             # JSON_PHRASES_FILE,
-            # BILETS_NAME_FILE,
-            # BILETS_FILE,
+            BILETS_NAME_FILE,
+            BILETS_FILE,
         )
 
         spechController.Start()
