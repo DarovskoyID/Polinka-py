@@ -1,0 +1,10 @@
+ACCESS_KEY = "uHmVJfEIx6ynqIPc4DeQAiLClCio/4FtDwkqUu3p2yehntyj3USUYQ=="
+
+TTS_MODEL_PATH = "./models/piper-model/ru_RU-irina-medium.onnx"
+WHISPER_MODEL_PATH = "./models/whisper-model/"
+WAKEWORD_POLINA_MODEL_PATH = "./models/Polina_en_windows_v3_0_0.ppn"
+ANIMATION_PATH = "./UI/Raw/animation.gif"
+LOG_FILE = "./log.txt"
+JSON_PHRASES_FILE = "./commands.json"
+BILETS_NAME_FILE = "./billetsTitles.txt"
+BILETS_FILE = "./bilets.txt"

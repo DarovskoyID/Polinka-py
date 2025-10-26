@@ -1,219 +1,197 @@
-from SRC.RecordMicro import record_seconds
-from SRC.WakeWord import WakeWord
-from SRC.Whisper import Whisper
-
+import threading
+import queue
+import time
 import numpy as np
-import sounddevice as sd
 import piper
+import sounddevice as sd
+from SRC.Loger import _log
+from SRC.WakeWord import WakeWord
 
-
+# ===========================================================
+# SpeechController: обработка билетов и TTS
+# ===========================================================
 class SpeechController:
-    def __init__(self, WHISPER_MODEL_PATH,
-                 WAKEWORD_POLINA_MODEL_PATH,
-                 TTS_MODEL_PATH,
-                 ACCESS_KEY,
-                 window,
-                 filelog,
-                 fileTitles,
-                 fileTickets
-                 ):
-
-        self.result = ""        # <── обязательно
-        self.answer = ""        # <── обязательно
-        self.ticket = None
-
-        self.filelog = filelog
+    def __init__(self, fileTitles, fileTickets, window, tts_model, wakeword_model_path, access_key):
         self.window = window
+        self.fileTitles = fileTitles
+        self.fileTickets = fileTickets
+        self.tts_voice = piper.PiperVoice.load(tts_model)
 
+        # TTS
+        self.tts_queue = queue.Queue()
+        self.tts_lock = threading.Lock()
+        self.tts_thread = threading.Thread(target=self._tts_worker, daemon=True)
+        self.tts_thread.start()
 
-        self.whisperASR = Whisper(WHISPER_MODEL_PATH)
-        self.voice = piper.PiperVoice.load(TTS_MODEL_PATH)
+        # WakeWord listener
+        self.wake_listener = WakeWord(window, wakeword_model_path, access_key)
 
-        self.wakeword = WakeWord(
-            window,
-            filelog,
-            [],
-            [WAKEWORD_POLINA_MODEL_PATH],
-            [
-                (self.WakeWordDetected, (), {}),
-                (self.Recog, (self.whisperASR,), {}),
-                (self.ComputeSentence, (), {}),
-                (self.ToSpeech, (), {}),
-                (self.ChooseTicket, (fileTitles,), {}),
-                (self.SayTicket , (fileTickets,), {}),
-            ],
-            ACCESS_KEY
-        )
+        # Состояния
+        self.read_lock = threading.Lock()
+        self.current_stop_event = threading.Event()
+        self.reading_titles = False
+        self.reading_ticket = False
+        self.ticket_titles = []
+        self.ticket_texts = []
+        self.last_title_index = 0
+        self.ticket_index = None
+        self.pip_counter = 0
 
-    # =============================================================
+        # Запускаем обработку событий
+        self.event_thread = threading.Thread(target=self._event_loop, daemon=True)
+        self.event_thread.start()
+
+    # ==========================
+    # TTS
+    # ==========================
+    def _tts_worker(self):
+        while True:
+            text = self.tts_queue.get()
+            if text is None:
+                break
+            try:
+                with self.tts_lock:
+                    chunks = [c.audio_float_array for c in self.tts_voice.synthesize(text)]
+                    if chunks:
+                        sd.play(np.concatenate(chunks), samplerate=self.tts_voice.config.sample_rate)
+                        sd.wait()
+            except Exception as e:
+                _log(f"[TTS] Error: {e}")
+
+    def queue_tts(self, text):
+        if text:
+            self.tts_queue.put(text)
+
+    # ==========================
+    # Обработка событий WakeWord и пиков
+    # ==========================
+    def _event_loop(self):
+        while True:
+            try:
+                ev = self.wake_listener.event_queue.get(timeout=0.5)
+            except queue.Empty:
+                continue
+            if ev[0] == "wakeword":
+                self._handle_wakeword()
+            elif ev[0] == "pip":
+                self._handle_pip(ev[1])
+
+    # ==========================
     # WakeWord
-    # =============================================================
-    def WakeWordDetected(self, stop_event=None, event_type=None):
-        if stop_event and stop_event.is_set():
-            return
+    # ==========================
+    def _handle_wakeword(self):
+        _log("[WakeWord] Detected 'полина', прерываем все чтения")
+        self._stop_all_readings()
+        self._compute_answer()
 
-        if event_type == "keyword_detected":
-            infoText = "!++++++++++++ \n"
-        elif event_type == "loud_sound":
-            infoText = "!------ Пик! ------ \n"
-        else:
-            infoText = f"!??? event={event_type}\n"
+    def _compute_answer(self):
+        _log("[ComputeAnswer] Stub answer computation")
 
-        self.filelog.write(infoText)
-        self.window.PushText(infoText)
+    # ==========================
+    # PIP controller
+    # ==========================
+    def _handle_pip(self, event):
+        count_pip = event
+        _log(f"[PIP] Detected pip {count_pip}")
+        if count_pip == 1:
+            if self.reading_titles:
+                title = self.ticket_titles[self.last_title_index]
+                self.queue_tts(title)
+            elif self.reading_ticket and self.ticket_index is not None:
+                line = self.ticket_texts[self.ticket_index]
+                self.queue_tts(line)
+        elif count_pip == 2:
+            if not self.reading_titles and not self.reading_ticket:
+                threading.Thread(target=self._read_titles, daemon=True).start()
+            elif self.reading_titles and self.last_title_index > 0:
+                self.last_title_index -= 1
+                title = self.ticket_titles[self.last_title_index]
+                self.queue_tts(title)
+        elif count_pip >= 3:
+            _log("[PIP3] Stop all readings")
+            self._stop_all_readings()
 
-    # =============================================================
-    # Распознавание речи
-    # =============================================================
-    def Recog(self, whisperASR, stop_event=None, event_type=None):
-        if stop_event and stop_event.is_set():
-            return
+    # ==========================
+    # Прерывание всех чтений
+    # ==========================
+    def _stop_all_readings(self):
+        self.current_stop_event.set()
+        self.reading_titles = False
+        self.reading_ticket = False
+        self.ticket_index = None
+        self.last_title_index = 0
+        self.current_stop_event = threading.Event()
 
-        if event_type == "loud_sound":
-            return
+        while not self.tts_queue.empty():
+            try:
+                self.tts_queue.get_nowait()
+            except queue.Empty:
+                break
+        _log("[TTS] Queue cleared")
+        _log("[Stop] All readings stopped")
 
-        path, sr = record_seconds()
-        if stop_event and stop_event.is_set():
-            return
-
-        self.result = whisperASR.Recognize(path)
-        if not self.result:
-            return
-
-        tmp = self.result + '\n'
-        self.filelog.write(tmp)
-        self.window.PushText(tmp)
-
-    # =============================================================
-    # Выбор билета
-    # =============================================================
-    def ChooseTicket(self, fileTitles, stop_event=None, event_type=None):
-        if stop_event and stop_event.is_set():
-            return
-        if event_type == "loud_sound" and not self.ticket:
-            with open(fileTitles, "r", encoding="utf-8") as f:
-                i = 0
-                for line in f:
-                    i += 1
-                    self.filelog.write(f"[ChooseTicket] ticket title said: {line}\n")
-                    self.window.PushText(f"[ChooseTicket] ticket title said: {line}\n")
-                    chunks = []
-                    for audio_chunk in self.voice.synthesize(line):
-                        if stop_event and stop_event.is_set():
-                            return
-                        chunks.append(audio_chunk.audio_float_array)
-
-                    if not chunks:
-                        return
-                    wav_array_float = np.concatenate(chunks)
-                    sd.play(wav_array_float, samplerate=self.voice.config.sample_rate)
-                    while sd.get_stream().active:
-                        if stop_event and stop_event.is_set():
-                            self.ticket = i
-                            self.filelog.write(f"[ChooseTicket] ticket chosen: {self.ticket}\n")
-                            self.window.PushText(f"[ChooseTicket] ticket chosen: {self.ticket}\n")
-                            sd.stop()
-                            return
-
-    # =============================================================
-    # Диктовка билета
-    # =============================================================
-    def SayTicket(self, fileTickets, stop_event=None, event_type=None):
-        if stop_event and stop_event.is_set():
-            return
-
-        if event_type != "loud_sound" or not self.ticket:
-            return
+    # ==========================
+    # Чтение названий билетов
+    # ==========================
+    def _read_titles(self, delay=3):
+        with self.read_lock:
+            if self.reading_titles or self.reading_ticket:
+                return
+            self.reading_titles = True
 
         try:
-            with open(fileTickets, "r", encoding="utf-8", errors="ignore") as f:
-                lines = f.readlines()
-                if self.ticket - 1 >= len(lines):
-                    return
-                line = lines[self.ticket - 1].strip()
-                if not line:
-                    return
-
-            self.filelog.write(f"[SayTicket] ticket dictated: {self.ticket}\n")
-            self.window.PushText(f"[SayTicket] ticket dictated: {self.ticket}\n")
-
-            chunks = []
-            for audio_chunk in self.voice.synthesize(line):
-                if stop_event and stop_event.is_set():
-                    self.ticket = None
-                    return
-                chunks.append(audio_chunk.audio_float_array)
-
-            if not chunks:
-                return
-
-            wav_array_float = np.concatenate(chunks)
-            sd.play(wav_array_float, samplerate=self.voice.config.sample_rate)
-
-            while sd.get_stream().active:
-                if stop_event and stop_event.is_set():
-                    self.ticket = None
-                    sd.stop()
-                    return
-
-            self.ticket = None
-
+            with open(self.fileTitles, "r", encoding="utf-8") as f:
+                self.ticket_titles = [line.strip() for line in f if line.strip()]
         except Exception as e:
-            self.filelog.write(f"SayTicket error: {e}\n")
-            self.window.PushText(f"SayTicket error: {e}\n")
-
-    # =============================================================
-    # Обработка текста
-    # =============================================================
-    def ComputeSentence(self, stop_event=None, event_type=None):
-        if stop_event and stop_event.is_set():
+            _log(f"[ReadTitles] {e}")
+            self.reading_titles = False
             return
 
-        if event_type == "loud_sound":
-            return
+        for i, title in enumerate(self.ticket_titles):
+            if self.current_stop_event.is_set():
+                break
+            self.last_title_index = i
+            self.queue_tts(title)
+            t0 = time.time()
+            while time.time() - t0 < delay:
+                if self.current_stop_event.is_set():
+                    break
+                time.sleep(0.05)
+        self.reading_titles = False
 
-        if not hasattr(self, "result") or not self.result:
-            self.filelog.write("[ComputeSentence] Пропуск — нет текста")
-            self.window.PushText("[ComputeSentence] Пропуск — нет текста")
-            return
-
-        if "привет" in self.result.lower():
-            self.answer = "Здравствуйте, Иван!"
-        else:
-            self.answer = "Пользователь не распознан"
-
-    # =============================================================
-    # Озвучивание
-    # =============================================================
-    def ToSpeech(self, stop_event=None, event_type=None):
-        if stop_event and stop_event.is_set():
-            return
-
-        if event_type == "loud_sound":
-            return
-
-        if not hasattr(self, "answer") or not self.answer:
-            self.filelog.write("[ToSpeech] Пропуск — нет ответа")
-            self.window.PushText("[ToSpeech] Пропуск — нет ответа")
-            return
-        self.window.PushText("Полина: " + self.answer + "\n")
-        chunks = []
-        for audio_chunk in self.voice.synthesize(self.answer):
-            if stop_event and stop_event.is_set():
+    # ==========================
+    # Чтение билета
+    # ==========================
+    def read_ticket(self):
+        with self.read_lock:
+            if self.reading_ticket or self.ticket_index is not None:
                 return
-            chunks.append(audio_chunk.audio_float_array)
+            self.reading_ticket = True
 
-        if not chunks:
+        try:
+            with open(self.fileTickets, "r", encoding="utf-8") as f:
+                self.ticket_texts = [line.strip() for line in f if line.strip()]
+        except Exception as e:
+            _log(f"[ReadTickets] {e}")
+            self.reading_ticket = False
             return
-        wav_array_float = np.concatenate(chunks)
-        sd.play(wav_array_float, samplerate=self.voice.config.sample_rate)
-        while sd.get_stream().active:
-            if stop_event and stop_event.is_set():
-                sd.stop()
-                return
 
-    # =============================================================
-    # Запуск прослушивания
-    # =============================================================
-    def Start(self):
-        self.wakeword.StartListning()
+        if self.ticket_index is None:
+            self.ticket_index = 0
+        if self.ticket_index >= len(self.ticket_texts):
+            self.reading_ticket = False
+            return
+
+        line = self.ticket_texts[self.ticket_index]
+        self.queue_tts(line)
+        self.reading_ticket = False
+        self.ticket_index = None
+
+    # ==========================
+    # Завершение
+    # ==========================
+    def stop(self):
+        self._stop_all_readings()
+        self.tts_queue.put(None)
+        self.tts_thread.join(timeout=1)
+        self.wake_listener.stop()

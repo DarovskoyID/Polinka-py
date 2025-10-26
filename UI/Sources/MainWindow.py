@@ -2,7 +2,7 @@ import json
 import os
 
 from PySide6.QtWidgets import QMainWindow, QLabel, QStackedWidget
-from PySide6.QtGui import QMovie, QTextCursor
+from PySide6.QtGui import QMovie
 from PySide6.QtCore import QFileSystemWatcher, QTimer
 
 from UI.Sources.jarvis import Ui_MainWindow
@@ -14,17 +14,15 @@ class MainWindow(QMainWindow):
             self.stackTabs[i].hide()
         self.stackTabs[n].show()
 
-    def __init__(self, animationPath: str, log_file: str, json_file : str):
+    def __init__(self, animationPath: str, log_file: str, json_file: str):
         super().__init__()
         self.ui = Ui_MainWindow()
         self.json_path = json_file
         self.ui.setupUi(self)
+
         # --- табы ---
         self.stack = QStackedWidget(self)
-        self.stackTabs = []
-        self.stackTabs.append(self.ui.MainTab)
-        self.stackTabs.append(self.ui.SettingsTab)
-        self.stackTabs.append(self.ui.LogsTab)
+        self.stackTabs = [self.ui.MainTab, self.ui.SettingsTab, self.ui.LogsTab]
         self.activateTab(0)
         self.ui.Home.clicked.connect(lambda: self.activateTab(0))
         self.ui.Settings.clicked.connect(lambda: self.activateTab(1))
@@ -39,47 +37,49 @@ class MainWindow(QMainWindow):
 
         # --- лог ---
         self.log_file = log_file
-        self.log_pos = 0
 
         self.ui.SmallLogs.setPlainText("")
         self.ui.FullLogs.setPlainText("")
 
-        # watcher для файла
-        self.watcher = QFileSystemWatcher([self.log_file])
-        self.watcher.fileChanged.connect(self.read_new_lines)
+        # watcher для логов
+        self.log_watcher = QFileSystemWatcher([self.log_file])
+        self.log_watcher.fileChanged.connect(self.read_logs)
 
         # таймер на случай пропуска событий
         self.timer = QTimer()
-        self.timer.setInterval(1000)
-        self.timer.timeout.connect(self.read_new_lines)
+        self.timer.setInterval(2000)
+        self.timer.timeout.connect(self.read_logs)
         self.timer.start()
 
-        # начальное чтение
-        self.read_new_lines()
+        # начальное чтение логов
+        self.read_logs()
 
-        #json
+        # --- JSON ---
         self.text = self.ui.BaseFrases
-        self.watcher = QFileSystemWatcher([self.json_path])
-        self.watcher.fileChanged.connect(self.reload_json)
+        self.json_watcher = QFileSystemWatcher([self.json_path])
+        self.json_watcher.fileChanged.connect(self.reload_json)
 
         self.text.textChanged.connect(self.on_text_changed)
         self.ignore_change = False
         self.reload_json()
 
-    def read_new_lines(self):
-        """Читает только новые строки и добавляет в оба виджета"""
+    # ------------------------- ЛОГИ -------------------------
+
+    def read_logs(self):
+        """Полностью перечитывает лог-файл и обновляет виджеты"""
         try:
             with open(self.log_file, 'r', encoding='utf-16') as f:
-                f.seek(self.log_pos)
-                new_text = f.read()
-                if new_text:
-                    for widget in [self.ui.SmallLogs, self.ui.FullLogs]:
-                        widget.moveCursor(QTextCursor.End)  # <-- здесь исправлено
-                        widget.insertPlainText(new_text)
-                        widget.verticalScrollBar().setValue(widget.verticalScrollBar().maximum())
-                self.log_pos = f.tell()
+                text = f.read()
         except FileNotFoundError:
-            pass
+            text = ""
+        except Exception:
+            return  # на случай ошибки чтения — просто пропускаем
+
+        for widget in [self.ui.SmallLogs, self.ui.FullLogs]:
+            widget.setPlainText(text)
+            widget.verticalScrollBar().setValue(widget.verticalScrollBar().maximum())
+
+    # ------------------------- JSON -------------------------
 
     def reload_json(self):
         if not os.path.exists(self.json_path):
@@ -91,7 +91,7 @@ class MainWindow(QMainWindow):
             self.ignore_change = True
             self.text.setPlainText(text)
             self.ignore_change = False
-        except Exception as e:
+        except Exception:
             pass
 
     def on_text_changed(self):
@@ -110,11 +110,7 @@ class MainWindow(QMainWindow):
             # Игнорируем, если текст еще невалидный JSON
             pass
 
-    def PushText(self, text):
-        for widget in [self.ui.SmallLogs, self.ui.FullLogs]:
-            widget.moveCursor(QTextCursor.End)
-            widget.insertPlainText(text)
-            widget.verticalScrollBar().setValue(widget.verticalScrollBar().maximum())
+    # ------------------------- ПРОЧЕЕ -------------------------
 
     def GetAnimationLabel(self):
         return self.label
