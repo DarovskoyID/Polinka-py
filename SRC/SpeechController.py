@@ -27,6 +27,7 @@ class SpeechController:
         self.wake_listener = WakeWord(window, wakeword_model_path, access_key)
 
         # Состояния
+        self._state = "IDLE"
         self.read_lock = threading.Lock()
         self.current_stop_event = threading.Event()
         self.reading_titles = False
@@ -90,26 +91,33 @@ class SpeechController:
     # ==========================
     # PIP controller
     # ==========================
-    def _handle_pip(self, event):
-        count_pip = event
+    def _handle_pip(self, count_pip):
         _log(f"[PIP] Detected pip {count_pip}")
-        if count_pip == 1:
-            if self.reading_titles:
-                title = self.ticket_titles[self.last_title_index]
-                self.queue_tts(title)
-            elif self.reading_ticket and self.ticket_index is not None:
-                line = self.ticket_texts[self.ticket_index]
-                self.queue_tts(line)
-        elif count_pip == 2:
-            if not self.reading_titles and not self.reading_ticket:
-                threading.Thread(target=self._read_titles, daemon=True).start()
-            elif self.reading_titles and self.last_title_index > 0:
-                self.last_title_index -= 1
-                title = self.ticket_titles[self.last_title_index]
-                self.queue_tts(title)
-        elif count_pip >= 3:
-            _log("[PIP3] Stop all readings")
+
+        if count_pip >= 3:
             self._stop_all_readings()
+            return
+
+        if self._state == "IDLE":
+            if count_pip == 2:
+                _log("[FSM] Запуск чтения заголовков")
+                self._state = "READ_TITLES"
+                threading.Thread(target=self._read_titles_fsm, daemon=True).start()
+
+        elif self._state == "READ_TITLES":
+            if count_pip == 1:
+                self._state = "CONFIRM_TITLE"
+
+        elif self._state == "CONFIRM_TITLE":
+            if count_pip == 1:
+                self._state = "READ_TICKET"
+                threading.Thread(target=self.read_ticket, daemon=True).start()
+            elif count_pip == 2:
+                self._state = "READ_TITLES"
+                threading.Thread(target=self._read_titles_fsm, daemon=True).start()
+
+        elif self._state == "READ_TICKET":
+            pass
 
     # ==========================
     # Прерывание всех чтений
@@ -120,70 +128,103 @@ class SpeechController:
         self.reading_ticket = False
         self.ticket_index = None
         self.last_title_index = 0
-        self.current_stop_event = threading.Event()
 
         while not self.tts_queue.empty():
             try:
                 self.tts_queue.get_nowait()
             except queue.Empty:
                 break
+
+        self.queue_tts("Чтение остановлено")
         _log("[TTS] Queue cleared")
         _log("[Stop] All readings stopped")
+
+        self.current_stop_event.clear()
+        self._state = "IDLE"
 
     # ==========================
     # Чтение названий билетов
     # ==========================
-    def _read_titles(self, delay=3):
+    def _read_titles_fsm(self, delay=5):
         with self.read_lock:
             if self.reading_titles or self.reading_ticket:
                 return
             self.reading_titles = True
 
         try:
-            with open(self.fileTitles, "r", encoding="utf-8") as f:
+            with open(self.fileTitles, encoding="utf-8") as f:
                 self.ticket_titles = [line.strip() for line in f if line.strip()]
         except Exception as e:
             _log(f"[ReadTitles] {e}")
             self.reading_titles = False
+            self._state = "IDLE"
             return
 
         for i, title in enumerate(self.ticket_titles):
-            if self.current_stop_event.is_set():
+            if self.current_stop_event.is_set() or self._state not in ["READ_TITLES", "CONFIRM_TITLE"]:
                 break
+
             self.last_title_index = i
+            _log(f"[ReadTitles] Читаем заголовок билета {i + 1}: {title}")
             self.queue_tts(title)
+
             t0 = time.time()
             while time.time() - t0 < delay:
-                if self.current_stop_event.is_set():
+                if self.current_stop_event.is_set() or self._state not in ["READ_TITLES", "CONFIRM_TITLE"]:
                     break
                 time.sleep(0.05)
+
+            if self._state == "CONFIRM_TITLE":
+                _log(f"[ReadTitles] Подтверждаем билет {i + 1}: {title}")
+                self.queue_tts(f"{title}. Подтверждаете билет?")
+                t0_confirm = time.time()
+                while time.time() - t0_confirm < delay:
+                    if self.current_stop_event.is_set() or self._state in ["READ_TICKET", "IDLE"]:
+                        break
+                    time.sleep(0.05)
+
+            if self._state == "CONFIRM_TITLE":
+                self._state = "READ_TITLES"
+
         self.reading_titles = False
+        if self._state != "READ_TICKET":
+            self._state = "IDLE"
 
     # ==========================
     # Чтение билета
     # ==========================
     def read_ticket(self):
         with self.read_lock:
-            if self.reading_ticket or self.ticket_index is not None:
+            if self.reading_ticket:
                 return
             self.reading_ticket = True
 
         try:
-            with open(self.fileTickets, "r", encoding="utf-8") as f:
+            with open(self.fileTickets, encoding="utf-8") as f:
                 self.ticket_texts = [line.strip() for line in f if line.strip()]
         except Exception as e:
             _log(f"[ReadTickets] {e}")
             self.reading_ticket = False
             return
 
-        if self.ticket_index is None:
-            self.ticket_index = 0
-        if self.ticket_index >= len(self.ticket_texts):
+        # берём билет, соответствующий текущему заголовку
+        index = self.last_title_index
+        if index >= len(self.ticket_texts):
+            _log(f"[ReadTicket] Нет билета для заголовка {index + 1}")
             self.reading_ticket = False
             return
 
-        line = self.ticket_texts[self.ticket_index]
-        self.queue_tts(line)
+        text = self.ticket_texts[index]
+
+        words = text.split()
+        sentences = []
+        for i in range(0, len(words), 10):
+            sentences.append(" ".join(words[i:i + 10]))
+
+        _log(f"[ReadTicket] Чтение билета {index + 1}: {text}")
+        for sentence in sentences:
+            self.queue_tts(sentence)
+
         self.reading_ticket = False
         self.ticket_index = None
 
