@@ -224,6 +224,7 @@ class SpeechController:
             elif count_pip == 3:
                 self._adjusting_speed = False
                 _log("[Speed] Режим настройки завершён")
+                self._state = "IDLE"
                 self.queue_tts("Настройка скорости завершена")
 
     # ==========================
