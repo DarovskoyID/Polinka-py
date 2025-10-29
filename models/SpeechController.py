@@ -5,7 +5,7 @@ import numpy as np
 import piper
 import sounddevice as sd
 from SRC.Loger import _log
-from SRC.WakeWord import WakeWord
+from SRC.WakeWord.WakeWord import WakeWord
 
 # ===========================================================
 # SpeechController: обработка билетов и TTS

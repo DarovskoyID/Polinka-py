@@ -6,7 +6,7 @@ import asyncio
 from qasync import QEventLoop
 from PySide6.QtWidgets import QApplication
 
-from SRC.SpeechController import SpeechController
+from SRC.Speech.Controller import SpeechController
 from UI.Sources.MainWindow import MainWindow
 
 from SRC.env import *
@@ -24,8 +24,8 @@ def main():
 
         # создаём SpeechController
         speechController = SpeechController(
-            fileTitles=BILETS_NAME_FILE,
-            fileTickets=BILETS_FILE,
+            file_titles=BILETS_NAME_FILE,
+            file_tickets=BILETS_FILE,
             window=window,
             tts_model=TTS_MODEL_PATH,
             wakeword_model_path=WAKEWORD_POLINA_MODEL_PATH,
