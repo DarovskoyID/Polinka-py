@@ -11,8 +11,7 @@ from SRC.Loger import _log
 # WakeWordListener: ловит "полина" и пики
 # ===========================================================
 class WakeWord:
-    def __init__(self, window, wakeword_model_path, access_key, accuracy = 5000, hold_time = 0.10, cooldown = 0.33):
-        self.window = window
+    def __init__(self, wakeword_model_path, access_key, accuracy = 5000, hold_time = 0.10, cooldown = 0.33):
         self.event_queue = queue.Queue()
         self.running = threading.Event()
         self.running.set()

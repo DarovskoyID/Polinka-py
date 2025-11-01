@@ -9,12 +9,11 @@ from SRC.WakeWord.WakeWord import WakeWord
 
 
 class SpeechController:
-    def __init__(self, file_titles, file_tickets, window, tts_model, wakeword_model_path, access_key):
+    def __init__(self, file_titles, file_tickets, tts_model, wakeword_model_path, access_key):
         # --- подсистемы ---
-        self.window = window
         self.tts = TTSManager(tts_model)
         self.router = EventRouter()
-        self.wake_listener = WakeWord(window, wakeword_model_path, access_key)
+        self.wake_listener = WakeWord(wakeword_model_path, access_key)
 
         # --- состояния ---
         self._state = "IDLE"
@@ -53,11 +52,11 @@ class SpeechController:
     # =======================================================
     def _register_event_handlers(self):
         self.router.on("wakeword", self._on_wakeword)
+        self.router.on("pip", self._on_pip_generic)
         self.router.on("pip:1", self._on_pip_1)
         self.router.on("pip:2", self._on_pip_2)
         self.router.on("pip:3", self._on_pip_3)
         self.router.on("pip:4", self._on_pip_4)
-        self.router.on("pip", self._on_pip_generic)  # fallback
 
     # =======================================================
     # Цикл событий
@@ -85,17 +84,16 @@ class SpeechController:
         self.tts.say("Слушаю")
 
     def _on_pip_generic(self, count_pip):
-        _log(f"[PIP] Detected {count_pip} (generic handler)")
+        _log(f"[PIP] Detected {count_pip} (generic handler) {self._state}")
 
     # =======================================================
     # pip:1 → короткий сигнал
     # =======================================================
     def _on_pip_1(self, *_):
-        if self._adjusting_speed:
+        if self._state == "SPEEDMODE":
             self._enter_speed_mode(1)
-            return
 
-        if self._state == "READ_TITLES":
+        elif self._state == "READ_TITLES":
             self._state = "CONFIRM_TITLE"
 
         elif self._state == "CONFIRM_TITLE":
@@ -111,11 +109,10 @@ class SpeechController:
     # pip:2 → двойной сигнал
     # =======================================================
     def _on_pip_2(self, *_):
-        if self._adjusting_speed:
+        if self._state == "SPEEDMODE":
             self._enter_speed_mode(2)
-            return
 
-        if self._state == "IDLE":
+        elif self._state == "IDLE":
             _log("[FSM] Запуск чтения заголовков")
             self._state = "READ_TITLES"
             threading.Thread(target=self._read_titles, daemon=True).start()
@@ -135,7 +132,7 @@ class SpeechController:
     # pip:3 → тройной сигнал
     # =======================================================
     def _on_pip_3(self, *_):
-        if self._adjusting_speed:
+        if self._state == "SPEEDMODE":
             self._enter_speed_mode(3)
             return
 
@@ -146,7 +143,7 @@ class SpeechController:
     # pip:4 → вход в режим настройки скорости
     # =======================================================
     def _on_pip_4(self, *_):
-        self._adjusting_speed = True
+        self._state = "SPEEDMODE"
         _log(f"[Speed] Настройка скорости активирована (текущая = {self.read_speed:.2f})")
         self.tts.say(f"Настройка скорости. Текущая {self.read_speed:.1f}")
 
@@ -170,7 +167,6 @@ class SpeechController:
                 self.tts.say(f"Скорость {self.read_speed:.1f}")
 
             elif count_pip == 3:
-                self._adjusting_speed = False
                 self._state = "IDLE"
                 _log("[Speed] Режим настройки завершён")
                 self.tts.say("Настройка скорости завершена")
@@ -237,7 +233,7 @@ class SpeechController:
                 self._state = "READ_TITLES"
 
         self.reading_titles = False
-        if self._state != "READ_TICKET":
+        if self._state != "READ_TICKET" and self._state != "SPEEDMODE":
             self._state = "IDLE"
 
     # =======================================================

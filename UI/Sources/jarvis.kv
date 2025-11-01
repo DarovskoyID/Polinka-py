@@ -1,0 +1,166 @@
+#:kivy 2.1.0
+#:import dp kivy.metrics.dp
+#:import MDRectangleFlatButton kivymd.uix.button.MDRectangleFlatButton
+#:import MDTextField kivymd.uix.textfield.MDTextField
+#:import MDLabel kivymd.uix.label.MDLabel
+
+<Root>:
+    MainTab:
+        name: "main"
+    SettingsTab:
+        name: "settings"
+    LogsTab:
+        name: "logs"
+
+<MainTopBar@BoxLayout>:
+    size_hint_y: None
+    height: dp(56)
+    padding: dp(6)
+    spacing: dp(6)
+    canvas.before:
+        Color:
+            rgba: 0.05, 0.05, 0.05, 1
+        Rectangle:
+            pos: self.pos
+            size: self.size
+    MDRectangleFlatButton:
+        text: "Главная"
+        size_hint_x: 1
+        on_release: app.switch_screen("main")
+    MDRectangleFlatButton:
+        text: "Настройки"
+        size_hint_x: 1
+        on_release: app.switch_screen("settings")
+    MDRectangleFlatButton:
+        text: "Логи"
+        size_hint_x: 1
+        on_release: app.switch_screen("logs")
+
+<MainTab>:
+    canvas.before:
+        Color:
+            rgba: 0.05,0.05,0.05,1
+        Rectangle:
+            pos: self.pos
+            size: self.size
+
+    BoxLayout:
+        orientation: "vertical"
+        spacing: dp(10)
+        padding: dp(10)
+
+        MainTopBar:
+
+        Image:
+            id: anim
+            source: app.animation_path
+            size_hint_y: None
+            height: dp(500)
+            allow_stretch: True
+            keep_ratio: False   # <--- растягиваем по ширине
+
+        ScrollView:
+            size_hint_y: 1
+            do_scroll_x: False
+            MDLabel:
+                id: small_logs
+                text: ""
+                size_hint_y: None
+                height: self.texture_size[1]
+                text_size: self.width, None
+                font_name: "Roboto"
+
+<SettingsTab>:
+    canvas.before:
+        Color:
+            rgba: 0.05,0.05,0.05,1
+        Rectangle:
+            pos: self.pos
+            size: self.size
+
+    BoxLayout:
+        orientation: "vertical"
+        spacing: dp(6)
+        padding: dp(8)
+
+        MainTopBar:
+
+        MDTextField:
+            id: ai_key
+            hint_text: "Ключ AI"
+            text: root.ai_key
+            size_hint_y: None
+            height: dp(48)
+            font_name: "Roboto"
+
+        MDLabel:
+            text: "ASR (выбор)"
+            size_hint_y: None
+            height: dp(24)
+            font_name: "Roboto"
+
+        BoxLayout:
+            orientation: "horizontal"
+            size_hint_y: None
+            height: dp(48)
+            spacing: dp(8)
+
+            MDRectangleFlatButton:
+                id: btn_vosk
+                text: "VOSK"
+                on_release: app.set_asr("VOSK")
+                size_hint_x: 1
+            MDRectangleFlatButton:
+                id: btn_whisper
+                text: "WHISPER"
+                on_release: app.set_asr("WHISPER")
+                size_hint_x: 1
+
+        MDLabel:
+            text: "Базовые фразы (JSON)"
+            size_hint_y: None
+            height: dp(24)
+            font_name: "Roboto"
+
+        ScrollView:
+            size_hint_y: 1
+            do_scroll_x: False
+            do_scroll_y: True
+            TextInput:
+                id: base_phrases
+                text: root.base_phrases
+                font_name: "Roboto"
+                font_size: "13sp"
+                size_hint_y: None
+                height: max(self.minimum_height, dp(220))
+                multiline: True
+                on_text: app.on_base_phrases_change(self, self.text)
+
+<LogsTab>:
+    canvas.before:
+        Color:
+            rgba: 0.05,0.05,0.05,1
+        Rectangle:
+            pos: self.pos
+            size: self.size
+
+    BoxLayout:
+        orientation: "vertical"
+        spacing: dp(6)
+        padding: dp(8)
+
+        MainTopBar:
+
+        ScrollView:
+            size_hint_y: 1
+            do_scroll_x: False
+            do_scroll_y: True
+            TextInput:
+                id: full_logs
+                text: root.full_logs
+                font_name: "Roboto"
+                font_size: "12sp"
+                size_hint_y: None
+                height: max(self.minimum_height, dp(300))
+                multiline: True
+                readonly: True
