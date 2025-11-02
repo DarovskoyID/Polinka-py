@@ -57,7 +57,9 @@
             size_hint_y: None
             height: dp(500)
             allow_stretch: True
-            keep_ratio: False   # <--- растягиваем по ширине
+            keep_ratio: False
+            anim_delay: 0.03   # 30 мс между кадрами → 33 fps
+
 
         ScrollView:
             size_hint_y: 1
@@ -116,6 +118,45 @@
                 on_release: app.set_asr("WHISPER")
                 size_hint_x: 1
 
+        BoxLayout:
+            orientation: "horizontal"
+            size_hint_y: None
+            height: dp(48)
+            spacing: dp(6)
+
+            MDTextField:
+                id: pv_key
+                hint_text: "Porcupine Access Key"
+                text: root.pv_key
+                font_name: "Roboto"
+
+            MDRectangleFlatButton:
+                text: "Сохранить"
+                size_hint_x: None
+                width: dp(100)
+                on_release: app.save_pv_key()
+
+
+        MDLabel:
+            text: "Файлы данных"
+            size_hint_y: None
+            height: dp(24)
+            font_name: "Roboto"
+
+        BoxLayout:
+            orientation: "horizontal"
+            size_hint_y: None
+            height: dp(48)
+            spacing: dp(8)
+
+            MDRectangleFlatButton:
+                text: "Выбрать titles"
+                on_release: app.pick_titles()
+
+            MDRectangleFlatButton:
+                text: "Выбрать tickets"
+                on_release: app.pick_tickets()
+
         MDLabel:
             text: "Базовые фразы (JSON)"
             size_hint_y: None
@@ -150,6 +191,14 @@
         padding: dp(8)
 
         MainTopBar:
+
+        BoxLayout:
+            size_hint_y: None
+            height: dp(48)
+            spacing: dp(8)
+            MDRectangleFlatButton:
+                text: "Очистить логи"
+                on_release: app.clear_logs()
 
         ScrollView:
             size_hint_y: 1

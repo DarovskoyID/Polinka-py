@@ -9,8 +9,8 @@ from SRC.env import *
 def main():
     JarvisApp(
         animation_path=os.path.join("UI", "Sources", "animation.gif"),
-        log_file=os.path.join("log.txt"),
-        json_file=os.path.join("commands.json"),
+        log_file=LOG_FILE,
+        json_file=JSON_PHRASES_FILE,
         title="Jarvis"
     ).run()
 

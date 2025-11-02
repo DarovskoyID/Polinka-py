@@ -1,6 +1,7 @@
 import threading
 import queue
 import time
+from SRC.env import *
 
 from SRC.Loger import _log
 from SRC.Speech.EventRouter import EventRouter
@@ -9,7 +10,7 @@ from SRC.WakeWord.WakeWord import WakeWord
 
 
 class SpeechController:
-    def __init__(self, file_titles, file_tickets, tts_model, wakeword_model_path, access_key):
+    def __init__(self, tts_model, wakeword_model_path, access_key):
         # --- подсистемы ---
         self.tts = TTSManager(tts_model)
         self.router = EventRouter()
@@ -35,10 +36,6 @@ class SpeechController:
         }
         self.read_speed = self.speed_config["default"]
         self.delay = 5  # базовая пауза между предложениями
-
-        # --- файлы ---
-        self.file_titles = file_titles
-        self.file_tickets = file_tickets
 
         # --- события ---
         self._register_event_handlers()
@@ -198,7 +195,7 @@ class SpeechController:
             self.reading_titles = True
 
         try:
-            with open(self.file_titles, encoding="utf-8") as f:
+            with open(BILETS_NAME_FILE, encoding="utf-8") as f:
                 self.ticket_titles = [line.strip() for line in f if line.strip()]
         except Exception as e:
             _log(f"[ReadTitles] {e}")
@@ -246,7 +243,7 @@ class SpeechController:
             self.reading_ticket = True
 
         try:
-            with open(self.file_tickets, encoding="utf-8") as f:
+            with open(BILETS_FILE, encoding="utf-8") as f:
                 self.ticket_texts = [line.strip() for line in f if line.strip()]
         except Exception as e:
             _log(f"[ReadTickets] {e}")

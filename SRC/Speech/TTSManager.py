@@ -8,7 +8,10 @@ from SRC.Loger import _log
 
 class TTSManager:
     def __init__(self, tts_model):
-        self.voice = piper.PiperVoice.load(tts_model)
+        try:
+            self.voice = piper.PiperVoice.load(tts_model)
+        except Exception as e:
+            _log(e)
         self.queue = queue.Queue()
         self.lock = threading.Lock()
         self.speed = 1.0

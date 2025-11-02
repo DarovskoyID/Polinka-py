@@ -16,15 +16,21 @@ class WakeWord:
         self.running = threading.Event()
         self.running.set()
 
-        self.porcupine = pvporcupine.create(keyword_paths=[wakeword_model_path], access_key=access_key)
-        self.pa = pyaudio.PyAudio()
-        self.stream = self.pa.open(
-            rate=self.porcupine.sample_rate,
-            channels=1,
-            format=pyaudio.paInt16,
-            input=True,
-            frames_per_buffer=self.porcupine.frame_length
-        )
+        try:
+            self.porcupine = pvporcupine.create(keyword_paths=[wakeword_model_path], access_key=access_key)
+        except Exception as e:
+            _log(e)
+        try:
+            self.pa = pyaudio.PyAudio()
+            self.stream = self.pa.open(
+                rate=self.porcupine.sample_rate,
+                channels=1,
+                format=pyaudio.paInt16,
+                input=True,
+                frames_per_buffer=self.porcupine.frame_length
+            )
+        except Exception as e:
+            _log(e)
 
         self.audio_thread = threading.Thread(target=self._audio_loop, args={accuracy, hold_time, cooldown}, daemon=True)
         self.audio_thread.start()

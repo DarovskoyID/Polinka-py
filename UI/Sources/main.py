@@ -2,11 +2,16 @@
 import json
 import os
 from SRC.env import *
+from SRC.Loger import _log
 from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.properties import StringProperty
 from kivy.uix.screenmanager import ScreenManager, Screen
 from kivymd.app import MDApp
+from kivy.uix.popup import Popup
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.filechooser import FileChooserIconView
+from kivy.uix.button import Button
 from SRC.Speech.Controller import SpeechController
 
 # Path to kv — we will let MDApp load it exactly once by assigning self.kv_file
@@ -20,7 +25,7 @@ class MainTab(Screen):
 class SettingsTab(Screen):
     ai_key = StringProperty("")
     base_phrases = StringProperty("")
-
+    pv_key = StringProperty("")
 
 class LogsTab(Screen):
     full_logs = StringProperty("")
@@ -29,6 +34,37 @@ class LogsTab(Screen):
 class Root(ScreenManager):
     pass
 
+class FileChooserPopup(Popup):
+    def __init__(self, on_selection, **kwargs):
+        super().__init__(**kwargs)
+        self.title = "Выберите файл"
+        self.size_hint = (0.8, 0.8)
+        self.auto_dismiss = False
+        self.on_selection = on_selection
+
+        root = BoxLayout(orientation="vertical", spacing=5, padding=5)
+
+        self.fc = FileChooserIconView()
+        self.fc.multiselect = False
+
+        btns = BoxLayout(size_hint_y=None, height="48dp", spacing=5)
+        btn_ok = Button(text="OK")
+        btn_cancel = Button(text="Отмена")
+
+        btn_ok.bind(on_release=self.do_select)
+        btn_cancel.bind(on_release=lambda *a: self.dismiss())
+
+        btns.add_widget(btn_ok)
+        btns.add_widget(btn_cancel)
+
+        root.add_widget(self.fc)
+        root.add_widget(btns)
+        self.add_widget(root)
+
+    def do_select(self, *a):
+        if self.fc.selection:
+            self.on_selection(self, self.fc.selection)
+        self.dismiss()
 
 class JarvisApp(MDApp):
     def __init__(self, animation_path, log_file, json_file, **kwargs):
@@ -59,10 +95,9 @@ class JarvisApp(MDApp):
         # schedule polling of logs and load json
         Clock.schedule_interval(self.read_logs, 2.0)
         Clock.schedule_once(self.load_json, 0.3)
+        Clock.schedule_once(lambda dt: self.load_pv_key(), 0.5)
 
         self.speech = SpeechController(
-            file_titles=BILETS_NAME_FILE,
-            file_tickets=BILETS_FILE,
             tts_model=TTS_MODEL_PATH,
             wakeword_model_path=WAKEWORD_POLINA_MODEL_PATH,
             access_key=ACCESS_KEY
@@ -98,6 +133,7 @@ class JarvisApp(MDApp):
         try:
             with open(self.json_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
+                self.root.get_screen("settings").ids.pv_key.text = data.get("pv_key", "")
             txt = json.dumps(data, indent=4, ensure_ascii=False)
             self.ignore_change = True
             if "base_phrases" in self.root.get_screen("settings").ids:
@@ -112,6 +148,7 @@ class JarvisApp(MDApp):
         try:
             txt = self.root.get_screen("settings").ids.base_phrases.text
             data = json.loads(txt)
+            data["pv_key"] = self.root.get_screen("settings").ids.pv_key.text
             with open(self.json_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=4, ensure_ascii=False)
         except Exception:
@@ -140,6 +177,97 @@ class JarvisApp(MDApp):
         except Exception:
             pass
 
+    def pick_titles(self):
+        popup = FileChooserPopup(on_selection=self._titles_selected)
+        popup.open()
+
+    def _titles_selected(self, chooser, selection):
+        if not selection:
+            return
+        src = selection[0]
+        dst = BILETS_NAME_FILE
+
+        try:
+            with open(src, "r", encoding="utf-8") as fin, open(dst, "w", encoding="utf-8") as fout:
+                fout.write(fin.read())
+            _log(f"titles updated: {dst}")
+        except Exception as e:
+            _log(f"ERR copy titles: {e}")
+
+    def pick_tickets(self):
+        popup = FileChooserPopup(on_selection=self._tickets_selected)
+        popup.open()
+
+    def _tickets_selected(self, chooser, selection):
+        if not selection:
+            return
+        src = selection[0]
+        dst = BILETS_FILE
+
+        try:
+            with open(src, "r", encoding="utf-8") as fin, open(dst, "w", encoding="utf-8") as fout:
+                fout.write(fin.read())
+            _log(f"tickets updated: {dst} ")
+        except Exception as e:
+            _log(f"ERR copy tickets: {e}")
+
+    def clear_logs(self):
+        # очищаем файл
+        try:
+            with open(self.log_file, "w", encoding="utf-16") as f:
+                f.write("")
+        except Exception as e:
+            print("ERR clearing log:", e)
+
+        # очищаем виджеты сразу
+        try:
+            main = self.root.get_screen("main")
+            logs = self.root.get_screen("logs")
+            if "small_logs" in main.ids:
+                main.ids.small_logs.text = ""
+            if "full_logs" in logs.ids:
+                logs.ids.full_logs.text = ""
+        except Exception:
+            pass
+
+    def load_pv_key(self):
+        cfg_path = CONFIG_JSON
+        if not os.path.exists(cfg_path):
+            return
+        try:
+            with open(cfg_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            key = data.get("ACCESS_KEY_PV", "")
+            settings = self.root.get_screen("settings")
+            if "pv_key" in settings.ids:
+                settings.ids.pv_key.text = key
+                settings.pv_key = key  # если используешь свойство Screen
+        except Exception as e:
+            _log("ERR loading PV key:", e)
+
+
+    def save_pv_key(self):
+        key = self.root.get_screen("settings").ids.pv_key.text
+        cfg_path = CONFIG_JSON
+
+        # загружаем существующий config
+        data = {}
+        if os.path.exists(cfg_path):
+            try:
+                with open(cfg_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception:
+                data = {}
+
+        # записываем ключ
+        data["ACCESS_KEY_PV"] = key
+
+        try:
+            with open(cfg_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=4, ensure_ascii=False)
+            _log("Porcupine key saved!")
+        except Exception as e:
+            _log(f"ERR saving PV key: {e}")
 
 
 if __name__ == "__main__":
