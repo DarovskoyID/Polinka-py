@@ -1,10 +1,16 @@
 import threading
 import queue
 import numpy as np
-import sounddevice as sd
 import piper
 
 from SRC.Loger import _log
+
+from jnius import autoclass
+
+AudioTrack = autoclass('android.media.AudioTrack')
+AudioFormat = autoclass('android.media.AudioFormat')
+AudioManager = autoclass('android.media.AudioManager')
+
 
 class TTSManager:
     def __init__(self, tts_model):
@@ -18,6 +24,28 @@ class TTSManager:
         self.thread = threading.Thread(target=self._worker, daemon=True)
         self.thread.start()
 
+    def _play_android(self, pcm_f32, rate):
+        # convert float32 → int16 PCM
+        pcm16 = np.int16(np.clip(pcm_f32, -1, 1) * 32767).tobytes()
+
+        track = AudioTrack(
+            AudioManager.STREAM_MUSIC,
+            rate,
+            AudioFormat.CHANNEL_OUT_MONO,
+            AudioFormat.ENCODING_PCM_16BIT,
+            len(pcm16),
+            AudioTrack.MODE_STATIC
+        )
+        track.write(pcm16, 0, len(pcm16))
+        track.play()
+
+        # ждём окончания
+        while track.getPlaybackHeadPosition() < len(pcm16) // 2:
+            pass
+
+        track.stop()
+        track.release()
+
     def _worker(self):
         while True:
             text = self.queue.get()
@@ -28,8 +56,8 @@ class TTSManager:
                     chunks = [c.audio_float_array for c in self.voice.synthesize(text)]
                     if chunks:
                         rate = int(self.voice.config.sample_rate * self.speed)
-                        sd.play(np.concatenate(chunks), samplerate=rate)
-                        sd.wait()
+                        pcm = np.concatenate(chunks)
+                        self._play_android(pcm, rate)
             except Exception as e:
                 _log(f"[TTS] Error: {e}")
 
