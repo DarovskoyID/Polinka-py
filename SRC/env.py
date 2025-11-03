@@ -3,7 +3,7 @@ import os
 from SRC.Loger import _log
 
 TTS_MODEL_PATH = "./models/piper-model/ru_RU-irina-medium.onnx"
-WHISPER_MODEL_PATH = "./models/whisper-model/"
+VOSK_MODEL_PATH = "./models/vosk-model-small-ru-0.22"
 WAKEWORD_POLINA_MODEL_PATH = "./models/Polina_en_windows_v3_0_0.ppn"
 ANIMATION_PATH = "./UI/Raw/animation.gif"
 LOG_FILE = "./assets/log.txt"

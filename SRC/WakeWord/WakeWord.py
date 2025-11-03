@@ -6,7 +6,7 @@ import struct
 import pvporcupine
 from SRC.Loger import _log
 
-from jnius import autoclass, cast
+from jnius import autoclass
 
 AudioRecord = autoclass('android.media.AudioRecord')
 AudioFormat = autoclass('android.media.AudioFormat')

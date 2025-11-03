@@ -1,6 +1,9 @@
 import threading
 import queue
 import time
+
+from SRC.RecordSeconds import record_seconds
+from SRC.Vosk import Vosk
 from SRC.env import *
 
 from SRC.Loger import _log
@@ -15,6 +18,7 @@ class SpeechController:
         self.tts = TTSManager(tts_model)
         self.router = EventRouter()
         self.wake_listener = WakeWord(wakeword_model_path, access_key)
+        self.vosk = Vosk(VOSK_MODEL_PATH)
 
         # --- состояния ---
         self._state = "IDLE"
@@ -79,6 +83,8 @@ class SpeechController:
         _log("[WakeWord] 'Полина' обнаружена")
         self._stop_all_readings()
         self.tts.say("Слушаю")
+        filename, _ = record_seconds()
+        self.vosk.Recognize(filename)
 
     def _on_pip_generic(self, count_pip):
         _log(f"[PIP] Detected {count_pip} (generic handler) {self._state}")
