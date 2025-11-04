@@ -1,32 +1,79 @@
-from vosk import Model, KaldiRecognizer
-import json
-import wave
+from jnius import autoclass, PythonJavaClass, java_method
+from threading import Event
+
+# Android классы
+SpeechRecognizer = autoclass('android.speech.SpeechRecognizer')
+RecognizerIntent = autoclass('android.speech.RecognizerIntent')
+Intent = autoclass('android.content.Intent')
+PythonActivity = autoclass('org.kivy.android.PythonActivity')
 
 class Vosk():
-    def __init__(self, modelPath: str):
-        # тут у нас теперь vosk model
-        self.model = Model(modelPath)
+    def __init__(self, modelPath: str = None):
+        """
+        Встроенный Android SpeechRecognizer вместо Vosk.
+        modelPath игнорируется, оставлено для совместимости.
+        """
+        self.activity = PythonActivity.mActivity
+        self.recognizer = SpeechRecognizer.createSpeechRecognizer(self.activity)
+        self.result_text = ""
+        self.finished = Event()
 
-    def Recognize(self, audioPath: str):
-        wf = wave.open(audioPath, "rb")
-        rec = KaldiRecognizer(self.model, wf.getframerate())
-        rec.SetWords(False)
+        # Создаем listener
+        class Listener(PythonJavaClass):
+            __implements__ = ['android.speech.RecognitionListener']
 
-        text = ""
+            def __init__(self, outer):
+                super().__init__()
+                self.outer = outer
 
-        while True:
-            data = wf.readframes(4000)
-            if len(data) == 0:
-                break
+            @java_method('(Ljava/util/List;)V')
+            def onResults(self, results):
+                n = results.size()
+                text = ""
+                for i in range(n):
+                    text += str(results.get(i)) + " "
+                self.outer.result_text = "[ru]" + text.strip()
+                self.outer.finished.set()
 
-            if rec.AcceptWaveform(data):
-                res = json.loads(rec.Result())
-                text += res.get("text", "")
-            else:
-                # partial игнорируем
-                pass
+            # Обязательные методы интерфейса
+            @java_method('()V')
+            def onReadyForSpeech(self): pass
+            @java_method('(I)V')
+            def onBeginningOfSpeech(self, i): pass
+            @java_method('(F)V')
+            def onRmsChanged(self, v): pass
+            @java_method('([B)V')
+            def onBufferReceived(self, buffer): pass
+            @java_method('()V')
+            def onEndOfSpeech(self): pass
+            @java_method('(I)V')
+            def onError(self, error):
+                self.outer.result_text = f"[ru][ERROR {error}]"
+                self.outer.finished.set()
+            @java_method('(Ljava/lang/String;)V')
+            def onEvent(self, event): pass
+            @java_method('(Ljava/util/Bundle;)V')
+            def onPartialResults(self, partial): pass
 
-        res = json.loads(rec.FinalResult())
-        text += res.get("text", "")
+        self.listener = Listener(self)
+        self.recognizer.setRecognitionListener(self.listener)
 
-        return "[ru]" + text
+    def Recognize(self, audioPath: str = None):
+        """
+        Запускает распознавание речи через микрофон.
+        Параметр audioPath игнорируется для совместимости.
+        """
+        self.result_text = ""
+        self.finished.clear()
+
+        intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                        RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, 'ru-RU')
+
+        self.recognizer.startListening(intent)
+
+        # Ждем окончания распознавания
+        self.finished.wait()
+
+        return self.result_text
