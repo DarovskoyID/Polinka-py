@@ -3,6 +3,7 @@ import threading
 import queue
 import numpy as np
 import struct
+import pvporcupine
 from SRC.Loger import _log
 
 from jnius import autoclass
@@ -13,72 +14,65 @@ MediaRecorder = autoclass('android.media.MediaRecorder')
 
 
 # ===========================================================
-# WakeWordListener: ловит "Polina" (через простой метод)
+# WakeWordListener: ловит "полина" и пики (ANDROID)
 # ===========================================================
 class WakeWord:
-    def __init__(self, accuracy=5000, hold_time=0.10, cooldown=0.33):
+    def __init__(self, wakeword_model_path, access_key, accuracy = 5000, hold_time = 0.10, cooldown = 0.33):
         self.event_queue = queue.Queue()
         self.running = threading.Event()
         self.running.set()
 
+        # porcupine init
+        try:
+            self.porcupine = pvporcupine.create(keyword_paths=[wakeword_model_path], access_key=access_key)
+        except Exception as e:
+            _log(e)
+
         # === ANDROID INPUT ===
-        self.samplerate = 16000
-        self.chunk_duration = 0.2
-        self.chunk_size = int(self.samplerate * self.chunk_duration)
-        buffer_size = self.chunk_size * 2  # 16bit PCM
+        # no pyaudio, using AudioRecord
+        BUFFER_SIZE = self.porcupine.frame_length * 2
 
         self._record = AudioRecord(
             MediaRecorder.AudioSource.MIC,
-            self.samplerate,
+            self.porcupine.sample_rate,
             AudioFormat.CHANNEL_IN_MONO,
             AudioFormat.ENCODING_PCM_16BIT,
-            buffer_size
+            BUFFER_SIZE
         )
         self._record.startRecording()
 
-        # переменные для пиков
-        self._loud_start = None
-        self._last_peak_time = 0
-        self._peak_count = 0
-        self._last_event_time = 0
-
-        # слово Polina
-        self.wakeword = "polina"
         self.audio_thread = threading.Thread(target=self._audio_loop, args=(accuracy, hold_time, cooldown), daemon=True)
         self.audio_thread.start()
 
 
-    def _detect_wakeword(self, pcm):
-        """
-        Простая имитация wakeword: проверка амплитуды и структуры,
-        чтобы не ломать event_queue. Тут можно вставить ML/ASR позже.
-        """
-        # Т.к. готового offline ASR на Android через Python нет,
-        # ловим "Polina" условно: например, если rms > threshold
-        rms = np.sqrt(np.mean(pcm ** 2))
-        if rms > 0.1:  # условный порог, просто пример
-            return True
-        return False
-
-
     def _audio_loop(self, accuracy, hold_time, cooldown):
-        buf = bytearray(self.chunk_size * 2)
-
         while self.running.is_set():
             try:
+                # read raw pcm from android
+                buf = bytearray(self.porcupine.frame_length * 2)
                 read = self._record.read(buf, 0, len(buf))
                 if read <= 0:
                     continue
 
-                pcm = np.frombuffer(buf, dtype=np.int16).astype(np.float32) / 32768.0
+                pcm = struct.unpack_from("h" * self.porcupine.frame_length, buf)
 
-                # --- WakeWord detection ---
-                if self._detect_wakeword(pcm):
+                # WakeWord detection
+                keyword_index = self.porcupine.process(pcm)
+                if keyword_index >= 0:
                     self.event_queue.put(("wakeword", time.time()))
 
-                # --- Loud sound detection (pip) ---
-                amplitude = np.abs(pcm).mean()
+                # Loud sound detection (pip) ↓↓↓ =========== твоё, untouched
+                amplitude = np.abs(np.array(pcm, dtype=np.int16)).mean()
                 now = time.time()
+
+                if not hasattr(self, "_loud_start"):
+                    self._loud_start = None
+                if not hasattr(self, "_last_peak_time"):
+                    self._last_peak_time = 0
+                if not hasattr(self, "_peak_count"):
+                    self._peak_count = 0
+                if not hasattr(self, "_last_event_time"):
+                    self._last_event_time = 0
 
                 if amplitude > accuracy:
                     if self._loud_start is None:
@@ -107,3 +101,5 @@ class WakeWord:
             self._record.release()
         except:
             pass
+        if self.porcupine:
+            self.porcupine.delete()
