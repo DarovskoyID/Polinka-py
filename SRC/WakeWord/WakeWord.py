@@ -3,7 +3,6 @@ import threading
 import queue
 import numpy as np
 import struct
-import pvporcupine
 from SRC.Loger import _log
 
 from jnius import autoclass
@@ -14,34 +13,34 @@ MediaRecorder = autoclass('android.media.MediaRecorder')
 
 
 # ===========================================================
-# WakeWordListener: ловит "полина" и пики (ANDROID)
+# WakeWordListener: ловит пики (ANDROID), без pvporcupine
 # ===========================================================
 class WakeWord:
-    def __init__(self, wakeword_model_path, access_key, accuracy = 5000, hold_time = 0.10, cooldown = 0.33):
+    def __init__(self, accuracy=5000, hold_time=0.10, cooldown=0.33):
         self.event_queue = queue.Queue()
         self.running = threading.Event()
         self.running.set()
 
-        # porcupine init
-        try:
-            self.porcupine = pvporcupine.create(keyword_paths=[wakeword_model_path], access_key=access_key)
-        except Exception as e:
-            _log(e)
-
         # === ANDROID INPUT ===
         # no pyaudio, using AudioRecord
-        BUFFER_SIZE = self.porcupine.frame_length * 2
+        self.sample_rate = 16000  # стандартная частота для микрофона
+        self.frame_length = 512   # произвольная длина буфера
+        buffer_size = self.frame_length * 2
 
         self._record = AudioRecord(
             MediaRecorder.AudioSource.MIC,
-            self.porcupine.sample_rate,
+            self.sample_rate,
             AudioFormat.CHANNEL_IN_MONO,
             AudioFormat.ENCODING_PCM_16BIT,
-            BUFFER_SIZE
+            buffer_size
         )
         self._record.startRecording()
 
-        self.audio_thread = threading.Thread(target=self._audio_loop, args=(accuracy, hold_time, cooldown), daemon=True)
+        self.audio_thread = threading.Thread(
+            target=self._audio_loop,
+            args=(accuracy, hold_time, cooldown),
+            daemon=True
+        )
         self.audio_thread.start()
 
 
@@ -49,19 +48,14 @@ class WakeWord:
         while self.running.is_set():
             try:
                 # read raw pcm from android
-                buf = bytearray(self.porcupine.frame_length * 2)
+                buf = bytearray(self.frame_length * 2)
                 read = self._record.read(buf, 0, len(buf))
                 if read <= 0:
                     continue
 
-                pcm = struct.unpack_from("h" * self.porcupine.frame_length, buf)
+                pcm = struct.unpack_from("h" * self.frame_length, buf)
 
-                # WakeWord detection
-                keyword_index = self.porcupine.process(pcm)
-                if keyword_index >= 0:
-                    self.event_queue.put(("wakeword", time.time()))
-
-                # Loud sound detection (pip) ↓↓↓ =========== твоё, untouched
+                # Loud sound detection (pip)
                 amplitude = np.abs(np.array(pcm, dtype=np.int16)).mean()
                 now = time.time()
 
@@ -101,5 +95,3 @@ class WakeWord:
             self._record.release()
         except:
             pass
-        if self.porcupine:
-            self.porcupine.delete()
