@@ -1,8 +1,7 @@
 from jnius import autoclass
 import numpy as np
-import soundfile as sf
 import tempfile
-import time
+import wave
 
 # java classes
 AudioRecord = autoclass('android.media.AudioRecord')
@@ -46,11 +45,12 @@ def record_seconds(
         if read <= 0:
             continue
 
-        # convert to numpy float32 normalized -1..1
+        # convert to numpy int16
         pcm16 = np.frombuffer(byte_chunk, dtype=np.int16)[:chunk_size]
-        float32 = pcm16.astype(np.float32) / 32768.0
-        frames.append(float32.copy())
+        frames.append(pcm16.copy())
 
+        # convert to float32 normalized -1..1
+        float32 = pcm16.astype(np.float32) / 32768.0
         rms = np.sqrt(np.mean(float32 ** 2))
 
         if rms < silence_threshold:
@@ -66,7 +66,12 @@ def record_seconds(
 
     audio = np.concatenate(frames)
 
+    # save to WAV using wave module
     tmpfile = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
-    sf.write(tmpfile.name, audio, samplerate)
+    with wave.open(tmpfile.name, 'wb') as wf:
+        wf.setnchannels(channels)
+        wf.setsampwidth(bytes_per_sample)  # 2 bytes for 16bit
+        wf.setframerate(samplerate)
+        wf.writeframes(audio.tobytes())
 
     return tmpfile.name, samplerate
