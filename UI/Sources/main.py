@@ -2,7 +2,6 @@
 import json
 import os
 
-from kivy.lang import Builder
 
 from SRC.env import *
 from SRC.Loger import _log
@@ -69,8 +68,9 @@ class FileChooserPopup(Popup):
         self.fc.multiselect = False
 
         if platform == "android":
+            from android.storage import primary_external_storage_path
             # путь к общей папке Downloads
-            self.fc.path = "/"
+            self.fc.path = os.path.join(primary_external_storage_path(), "Download")
 
         btns = BoxLayout(size_hint_y=None, height="48dp", spacing=5)
         btn_ok = Button(text="OK")
