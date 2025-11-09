@@ -1,6 +1,9 @@
 # main.py (FIXED: prevent double KV loading)
 import json
 import os
+
+from kivy.lang import Builder
+
 from SRC.env import *
 from SRC.Loger import _log
 from kivy.clock import Clock
@@ -12,7 +15,9 @@ from kivy.uix.popup import Popup
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.filechooser import FileChooserIconView
 from kivy.uix.button import Button
-from SRC.Speech.Controller import SpeechController
+from kivy.utils import platform
+from kivy.core.image import Image as CoreImage
+# from SRC.Speech.Controller import SpeechController
 
 # Path to kv — we will let MDApp load it exactly once by assigning self.kv_file
 KV_FILE = os.path.join(os.path.dirname(__file__), "jarvis.kv")
@@ -21,6 +26,21 @@ KV_FILE = os.path.join(os.path.dirname(__file__), "jarvis.kv")
 class MainTab(Screen):
     log_text = StringProperty("")
 
+    def on_enter(self):
+        Clock.schedule_once(self.start_anim, 0)
+
+    def start_anim(self, dt):
+        app = App.get_running_app()
+        self.frames = [CoreImage(f).texture for f in app.frames if f]
+        self.anim_index = 0
+        self.anim_image = self.ids.anim
+        Clock.schedule_interval(self.next_frame, 0.03)
+
+    def next_frame(self, dt):
+        if not self.frames:
+            return
+        self.anim_image.texture = self.frames[self.anim_index]
+        self.anim_index = (self.anim_index + 1) % len(self.frames)
 
 class SettingsTab(Screen):
     ai_key = StringProperty("")
@@ -42,10 +62,15 @@ class FileChooserPopup(Popup):
         self.auto_dismiss = False
         self.on_selection = on_selection
 
+
         root = BoxLayout(orientation="vertical", spacing=5, padding=5)
 
         self.fc = FileChooserIconView()
         self.fc.multiselect = False
+
+        if platform == "android":
+            # путь к общей папке Downloads
+            self.fc.path = "/"
 
         btns = BoxLayout(size_hint_y=None, height="48dp", spacing=5)
         btn_ok = Button(text="OK")
@@ -70,40 +95,42 @@ class JarvisApp(MDApp):
     def __init__(self, animation_path, log_file, json_file, **kwargs):
         # set kv_file so MDApp will load jarvis.kv automatically ONCE
         super().__init__(**kwargs)
-        self.kv_file = KV_FILE    # <-- IMPORTANT: let MDApp load this file once
+        self.kv_file = KV_FILE
         self.animation_path = animation_path
         self.log_file = log_file
         self.json_file = json_file
         self.ignore_change = False
         self.asr_choice = "WHISPER"
+        self.frames = [
+            os.path.join(ANIMATION_PATH, f"out_%03d.png" % i)
+            for i in range(1, 219)
+        ]
 
     def build(self):
         # window size + ensure system chrome visible
-        Window.size = (500, 750)
-        Window.borderless = False
         Window.clearcolor = (13/255., 13/255., 13/255., 1)
-
         # KivyMD theme
         self.theme_cls.theme_style = "Dark"
         self.theme_cls.primary_palette = "BlueGray"
 
-        # create root AFTER kv is loaded by MDApp (MDApp already loaded kv_file)
-        # Note: do NOT call Builder.load_file(KV_FILE) anywhere else
+        # self.speech = SpeechController(
+        #     tts_model=TTS_MODEL_PATH,
+        #     wakeword_model_path=WAKEWORD_POLINA_MODEL_PATH,
+        #     access_key=ACCESS_KEY
+        # )
+        # root уже точно создан
+
         self.root = Root()
         self.root.current = "main"
 
-        # schedule polling of logs and load json
-        Clock.schedule_interval(self.read_logs, 2.0)
-        Clock.schedule_once(self.load_json, 0.3)
-        Clock.schedule_once(lambda dt: self.load_pv_key(), 0.5)
-
-        self.speech = SpeechController(
-            tts_model=TTS_MODEL_PATH,
-            wakeword_model_path=WAKEWORD_POLINA_MODEL_PATH,
-            access_key=ACCESS_KEY
-        )
 
         return self.root
+    def on_start(self):
+        print("I WAS STARTED")
+
+        Clock.schedule_interval(self.read_logs, 2.0)
+        Clock.schedule_once(self.load_json, 2.0)
+        Clock.schedule_once(lambda dt: self.load_pv_key(), 2.0)
 
     # --- LOGS ---
     def read_logs(self, *_):
@@ -128,9 +155,12 @@ class JarvisApp(MDApp):
 
     # --- JSON load/save ---
     def load_json(self, *_):
+        print("TRY LOAD JSON:", self.json_file)
         if not os.path.exists(self.json_file):
+            print("JSON FILE NOT FOUND!")
             return
         try:
+            print("WWW", self.json_file)
             with open(self.json_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 self.root.get_screen("settings").ids.pv_key.text = data.get("pv_key", "")
@@ -217,7 +247,7 @@ class JarvisApp(MDApp):
             with open(self.log_file, "w", encoding="utf-16") as f:
                 f.write("")
         except Exception as e:
-            print("ERR clearing log:", e)
+            print(f"ERR clearing log: {e}")
 
         # очищаем виджеты сразу
         try:
@@ -243,7 +273,7 @@ class JarvisApp(MDApp):
                 settings.ids.pv_key.text = key
                 settings.pv_key = key  # если используешь свойство Screen
         except Exception as e:
-            _log("ERR loading PV key:", e)
+            _log(f"ERR loading PV key: {e}")
 
 
     def save_pv_key(self):
@@ -268,12 +298,3 @@ class JarvisApp(MDApp):
             _log("Porcupine key saved!")
         except Exception as e:
             _log(f"ERR saving PV key: {e}")
-
-
-if __name__ == "__main__":
-    JarvisApp(
-        animation_path=os.path.join("UI", "Sources", "animation.gif"),
-        log_file=os.path.join("assets", "log.txt"),
-        json_file=os.path.join("assets", "data.json"),
-        title="Jarvis"
-    ).run()
