@@ -1,5 +1,7 @@
 from jnius import autoclass, PythonJavaClass, java_method
 from threading import Event
+from android.runnable import run_on_ui_thread
+from kivy.clock import Clock
 
 # Android классы
 SpeechRecognizer = autoclass('android.speech.SpeechRecognizer')
@@ -8,15 +10,16 @@ Intent = autoclass('android.content.Intent')
 PythonActivity = autoclass('org.kivy.android.PythonActivity')
 
 class Vosk():
-    def __init__(self, modelPath: str = None):
+    def __init__(self):
         """
         Встроенный Android SpeechRecognizer вместо Vosk.
         modelPath игнорируется, оставлено для совместимости.
         """
         self.activity = PythonActivity.mActivity
-        self.recognizer = SpeechRecognizer.createSpeechRecognizer(self.activity)
         self.result_text = ""
         self.finished = Event()
+
+
 
         # Создаем listener
         class Listener(PythonJavaClass):
@@ -55,7 +58,11 @@ class Vosk():
             @java_method('(Ljava/util/Bundle;)V')
             def onPartialResults(self, partial): pass
 
-        self.listener = Listener(self)
+        self._init_real()
+
+    @run_on_ui_thread
+    def _init_real(self):
+        self.recognizer = SpeechRecognizer.createSpeechRecognizer(self.activity)
         self.recognizer.setRecognitionListener(self.listener)
 
     def Recognize(self, audioPath: str = None):

@@ -16,7 +16,7 @@ from kivy.uix.filechooser import FileChooserIconView
 from kivy.uix.button import Button
 from kivy.utils import platform
 from kivy.core.image import Image as CoreImage
-# from SRC.Speech.Controller import SpeechController
+from SRC.Speech.Controller import SpeechController
 
 # Path to kv — we will let MDApp load it exactly once by assigning self.kv_file
 KV_FILE = os.path.join(os.path.dirname(__file__), "jarvis.kv")
@@ -112,14 +112,6 @@ class JarvisApp(MDApp):
         # KivyMD theme
         self.theme_cls.theme_style = "Dark"
         self.theme_cls.primary_palette = "BlueGray"
-
-        # self.speech = SpeechController(
-        #     tts_model=TTS_MODEL_PATH,
-        #     wakeword_model_path=WAKEWORD_POLINA_MODEL_PATH,
-        #     access_key=ACCESS_KEY
-        # )
-        # root уже точно создан
-
         self.root = Root()
         self.root.current = "main"
 
@@ -130,7 +122,13 @@ class JarvisApp(MDApp):
 
         Clock.schedule_interval(self.read_logs, 2.0)
         Clock.schedule_once(self.load_json, 2.0)
+        Clock.schedule_once(self.init_speach, 20.0)
         Clock.schedule_once(lambda dt: self.load_pv_key(), 2.0)
+
+    # --- SPEACH ---
+    def init_speach(self, *_):
+        self.speech = SpeechController()
+        self.speech.start()
 
     # --- LOGS ---
     def read_logs(self, *_):

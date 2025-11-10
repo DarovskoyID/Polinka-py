@@ -10,7 +10,7 @@ from jnius import autoclass
 AudioRecord = autoclass('android.media.AudioRecord')
 AudioFormat = autoclass('android.media.AudioFormat')
 MediaRecorder = autoclass('android.media.MediaRecorder')
-
+AudioSource = autoclass("android.media.MediaRecorder$AudioSource")
 
 # ===========================================================
 # WakeWordListener: ловит пики (ANDROID), без pvporcupine
@@ -28,7 +28,7 @@ class WakeWord:
         buffer_size = self.frame_length * 2
 
         self._record = AudioRecord(
-            MediaRecorder.AudioSource.MIC,
+            AudioSource.MIC,
             self.sample_rate,
             AudioFormat.CHANNEL_IN_MONO,
             AudioFormat.ENCODING_PCM_16BIT,
@@ -57,6 +57,7 @@ class WakeWord:
 
                 # Loud sound detection (pip)
                 amplitude = np.abs(np.array(pcm, dtype=np.int16)).mean()
+                _log(str(amplitude))
                 now = time.time()
 
                 if not hasattr(self, "_loud_start"):

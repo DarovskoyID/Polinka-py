@@ -2,6 +2,8 @@ import threading
 import queue
 import time
 
+from kivy.clock import Clock
+
 from SRC.RecordSeconds import record_seconds
 from SRC.Vosk import Vosk
 from SRC.env import *
@@ -13,12 +15,12 @@ from SRC.WakeWord.WakeWord import WakeWord
 
 
 class SpeechController:
-    def __init__(self, tts_model, wakeword_model_path, access_key):
+    def __init__(self):
         # --- подсистемы ---
-        self.tts = TTSManager(tts_model)
+        self.tts = TTSManager()
         self.router = EventRouter()
-        self.wake_listener = WakeWord(wakeword_model_path, access_key)
-        self.vosk = Vosk(VOSK_MODEL_PATH)
+        self.wake_listener = None
+        self.vosk = None
 
         # --- состояния ---
         self._state = "IDLE"
@@ -45,6 +47,11 @@ class SpeechController:
         self._register_event_handlers()
 
         # --- поток событий ---
+
+
+    def start(self):
+        self.vosk = Vosk()
+        self.wake_listener = WakeWord()
         self.event_thread = threading.Thread(target=self._event_loop, daemon=True)
         self.event_thread.start()
 
@@ -84,7 +91,8 @@ class SpeechController:
         self._stop_all_readings()
         self.tts.say("Слушаю")
         filename, _ = record_seconds()
-        self.vosk.Recognize(filename)
+        Clock.schedule_once(lambda dt: self.vosk.Recognize(filename), 0.5)
+
 
     def _on_pip_generic(self, count_pip):
         _log(f"[PIP] Detected {count_pip} (generic handler) {self._state}")
