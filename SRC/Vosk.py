@@ -1,7 +1,6 @@
 from jnius import autoclass, PythonJavaClass, java_method
 from threading import Event
 from android.runnable import run_on_ui_thread
-from kivy.clock import Clock
 
 # Android классы
 SpeechRecognizer = autoclass('android.speech.SpeechRecognizer')
@@ -9,7 +8,8 @@ RecognizerIntent = autoclass('android.speech.RecognizerIntent')
 Intent = autoclass('android.content.Intent')
 PythonActivity = autoclass('org.kivy.android.PythonActivity')
 
-class Vosk():
+
+class Vosk:
     def __init__(self):
         """
         Встроенный Android SpeechRecognizer вместо Vosk.
@@ -18,50 +18,60 @@ class Vosk():
         self.activity = PythonActivity.mActivity
         self.result_text = ""
         self.finished = Event()
+        self.recognizer = None
+        self.listener = None
 
+        # Инициализация на UI-потоке
+        self._init_real()
 
-
-        # Создаем listener
+    @run_on_ui_thread
+    def _init_real(self):
+        # Создаем listener прямо на UI-потоке
         class Listener(PythonJavaClass):
-            __implements__ = ['android.speech.RecognitionListener']
+            __javainterfaces__ = ['android/speech/RecognitionListener']
+            __javacontext__ = 'app'
 
             def __init__(self, outer):
                 super().__init__()
                 self.outer = outer
 
-            @java_method('(Ljava/util/List;)V')
+            @java_method('(Ljava/util/Bundle;)V')
             def onResults(self, results):
                 n = results.size()
                 text = ""
                 for i in range(n):
                     text += str(results.get(i)) + " "
-                self.outer.result_text = "[ru]" + text.strip()
+                self.outer.result_text = "[ru] " + text.strip()
                 self.outer.finished.set()
 
             # Обязательные методы интерфейса
             @java_method('()V')
             def onReadyForSpeech(self): pass
+
             @java_method('(I)V')
             def onBeginningOfSpeech(self, i): pass
+
             @java_method('(F)V')
             def onRmsChanged(self, v): pass
+
             @java_method('([B)V')
             def onBufferReceived(self, buffer): pass
+
             @java_method('()V')
             def onEndOfSpeech(self): pass
+
             @java_method('(I)V')
             def onError(self, error):
                 self.outer.result_text = f"[ru][ERROR {error}]"
                 self.outer.finished.set()
+
             @java_method('(Ljava/lang/String;)V')
             def onEvent(self, event): pass
+
             @java_method('(Ljava/util/Bundle;)V')
             def onPartialResults(self, partial): pass
 
-        self._init_real()
-
-    @run_on_ui_thread
-    def _init_real(self):
+        self.listener = Listener(self)
         self.recognizer = SpeechRecognizer.createSpeechRecognizer(self.activity)
         self.recognizer.setRecognitionListener(self.listener)
 
@@ -74,11 +84,18 @@ class Vosk():
         self.finished.clear()
 
         intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                        RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+        intent.putExtra(
+            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+        )
         intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, 'ru-RU')
 
-        self.recognizer.startListening(intent)
+        # startListening должен быть вызван на UI-потоке
+        def start_listening(dt):
+            self.recognizer.startListening(intent)
+
+        from kivy.clock import Clock
+        Clock.schedule_once(start_listening, 0)
 
         # Ждем окончания распознавания
         self.finished.wait()

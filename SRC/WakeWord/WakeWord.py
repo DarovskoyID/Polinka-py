@@ -57,7 +57,7 @@ class WakeWord:
 
                 # Loud sound detection (pip)
                 amplitude = np.abs(np.array(pcm, dtype=np.int16)).mean()
-                _log(str(amplitude))
+                #_log(str(amplitude))
                 now = time.time()
 
                 if not hasattr(self, "_loud_start"):

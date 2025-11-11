@@ -122,7 +122,7 @@ class JarvisApp(MDApp):
 
         Clock.schedule_interval(self.read_logs, 2.0)
         Clock.schedule_once(self.load_json, 2.0)
-        Clock.schedule_once(self.init_speach, 20.0)
+        Clock.schedule_once(self.init_speach, 2.0)
         Clock.schedule_once(lambda dt: self.load_pv_key(), 2.0)
 
     # --- SPEACH ---
