@@ -2,12 +2,11 @@
 import json
 import os
 
-
 from SRC.env import *
 from SRC.Loger import _log
 from kivy.clock import Clock
 from kivy.core.window import Window
-from kivy.properties import StringProperty
+from kivy.properties import StringProperty, NumericProperty
 from kivy.uix.screenmanager import ScreenManager, Screen
 from kivymd.app import MDApp
 from kivy.uix.popup import Popup
@@ -44,7 +43,34 @@ class MainTab(Screen):
 class SettingsTab(Screen):
     ai_key = StringProperty("")
     base_phrases = StringProperty("")
-    pv_key = StringProperty("")
+
+    amplitude = NumericProperty(0)
+    max_amplitude = NumericProperty(0)
+    accuracy = NumericProperty(5000)
+    hold_time = NumericProperty(0.1)
+    cooldown = NumericProperty(0.33)
+    read_cooldown = NumericProperty(3)
+
+    def on_read_cooldown(self, instance, value):
+        app = MDApp.get_running_app()
+        Clock.unschedule(app.save_sound_settings)
+        Clock.schedule_once(lambda dt: app.save_sound_settings(), 0.5)
+
+    def on_accuracy(self, instance, value):
+        app = MDApp.get_running_app()
+        Clock.unschedule(app.save_sound_settings)
+        Clock.schedule_once(lambda dt: app.save_sound_settings(), 0.5)
+
+    def on_hold_time(self, instance, value):
+        app = MDApp.get_running_app()
+        Clock.unschedule(app.save_sound_settings)
+        Clock.schedule_once(lambda dt: app.save_sound_settings(), 0.5)
+
+    def on_cooldown(self, instance, value):
+        app = MDApp.get_running_app()
+        Clock.unschedule(app.save_sound_settings)
+        Clock.schedule_once(lambda dt: app.save_sound_settings(), 0.5)
+
 
 class LogsTab(Screen):
     full_logs = StringProperty("")
@@ -66,6 +92,8 @@ class FileChooserPopup(Popup):
 
         self.fc = FileChooserIconView()
         self.fc.multiselect = False
+        self.fc.filters = ['*']
+        self.fc.dirselect = False
 
         if platform == "android":
             from android.storage import primary_external_storage_path
@@ -100,6 +128,7 @@ class JarvisApp(MDApp):
         self.log_file = log_file
         self.json_file = json_file
         self.ignore_change = False
+        self.speech = None
         self.asr_choice = "WHISPER"
         self.frames = [
             os.path.join(ANIMATION_PATH, f"out_%03d.png" % i)
@@ -121,13 +150,14 @@ class JarvisApp(MDApp):
         print("I WAS STARTED")
 
         Clock.schedule_interval(self.read_logs, 2.0)
+        Clock.schedule_once(lambda dt: self.load_sound_settings(), 2.0)
         Clock.schedule_once(self.load_json, 2.0)
         Clock.schedule_once(self.init_speach, 2.0)
-        Clock.schedule_once(lambda dt: self.load_pv_key(), 2.0)
+        Clock.schedule_once(lambda dt: self.load_ai_key(), 2.0)
 
     # --- SPEACH ---
     def init_speach(self, *_):
-        self.speech = SpeechController()
+        self.speech = SpeechController(self.root.get_screen("settings"))
         self.speech.start()
 
     # --- LOGS ---
@@ -161,12 +191,12 @@ class JarvisApp(MDApp):
             print("WWW", self.json_file)
             with open(self.json_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                self.root.get_screen("settings").ids.pv_key.text = data.get("pv_key", "")
-            txt = json.dumps(data, indent=4, ensure_ascii=False)
-            self.ignore_change = True
-            if "base_phrases" in self.root.get_screen("settings").ids:
-                self.root.get_screen("settings").ids.base_phrases.text = txt
-            self.ignore_change = False
+                txt = json.dumps(data, indent=4, ensure_ascii=False)
+                self.ignore_change = True
+                if "base_phrases" in self.root.get_screen("settings").ids:
+                    print("pushed text to base phrases")
+                    self.root.get_screen("settings").ids.base_phrases.text = txt
+                self.ignore_change = False
         except Exception:
             pass
 
@@ -176,7 +206,6 @@ class JarvisApp(MDApp):
         try:
             txt = self.root.get_screen("settings").ids.base_phrases.text
             data = json.loads(txt)
-            data["pv_key"] = self.root.get_screen("settings").ids.pv_key.text
             with open(self.json_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=4, ensure_ascii=False)
         except Exception:
@@ -258,24 +287,24 @@ class JarvisApp(MDApp):
         except Exception:
             pass
 
-    def load_pv_key(self):
+    def load_ai_key(self):
         cfg_path = CONFIG_JSON
         if not os.path.exists(cfg_path):
             return
         try:
             with open(cfg_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            key = data.get("ACCESS_KEY_PV", "")
+            key = data.get("ACCESS_KEY_AI", "")
             settings = self.root.get_screen("settings")
-            if "pv_key" in settings.ids:
-                settings.ids.pv_key.text = key
-                settings.pv_key = key  # если используешь свойство Screen
+            if "ai_key" in settings.ids:
+                settings.ids.ai_key.text = key
+                settings.ai_key = key  # если используешь свойство Screen
         except Exception as e:
-            _log(f"ERR loading PV key: {e}")
+            _log(f"ERR loading AI key: {e}")
 
 
-    def save_pv_key(self):
-        key = self.root.get_screen("settings").ids.pv_key.text
+    def save_ai_key(self):
+        key = self.root.get_screen("settings").ids.ai_key.text
         cfg_path = CONFIG_JSON
 
         # загружаем существующий config
@@ -288,11 +317,65 @@ class JarvisApp(MDApp):
                 data = {}
 
         # записываем ключ
-        data["ACCESS_KEY_PV"] = key
+        data["ACCESS_KEY_AI"] = key
 
         try:
             with open(cfg_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=4, ensure_ascii=False)
-            _log("Porcupine key saved!")
+            _log("AI key saved!")
         except Exception as e:
-            _log(f"ERR saving PV key: {e}")
+            _log(f"ERR saving AI key: {e}")
+
+    # --- SETTINGS SAVE/LOAD ---
+    def load_sound_settings(self):
+        cfg_path = CONFIG_JSON
+        if not os.path.exists(cfg_path):
+            return
+        try:
+            with open(cfg_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            settings = self.root.get_screen("settings")
+            settings.accuracy = data.get("accuracy", settings.accuracy)
+            settings.hold_time = data.get("hold_time", settings.hold_time)
+            settings.cooldown = data.get("cooldown", settings.cooldown)
+            settings.read_cooldown = data.get("read_cooldown", settings.read_cooldown)
+
+            # Если в KV есть TextInput — обновим текст
+            ids = settings.ids
+            if "accuracy" in ids:
+                ids.accuracy.text = str(settings.accuracy)
+            if "hold_time" in ids:
+                ids.hold_time.text = str(settings.hold_time)
+            if "cooldown" in ids:
+                ids.cooldown.text = str(settings.cooldown)
+            if "read_cooldown" in ids:
+                ids.read_cooldown.text = str(settings.read_cooldown)
+        except Exception as e:
+            _log(f"ERR loading sound settings: {e}")
+
+    def save_sound_settings(self):
+        cfg_path = CONFIG_JSON
+        settings = self.root.get_screen("settings")
+
+        # Загружаем текущий конфиг
+        data = {}
+        if os.path.exists(cfg_path):
+            try:
+                with open(cfg_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception:
+                data = {}
+
+        # Обновляем числовые параметры
+        data["accuracy"] = int(settings.accuracy)
+        data["hold_time"] = float(settings.hold_time)
+        data["cooldown"] = float(settings.cooldown)
+        data["read_cooldown"] = int(settings.read_cooldown)
+
+        try:
+            with open(cfg_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=4, ensure_ascii=False)
+            _log("Sound settings saved!")
+        except Exception as e:
+            _log(f"ERR saving sound settings: {e}")

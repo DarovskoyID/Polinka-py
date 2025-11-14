@@ -85,95 +85,135 @@
 
         MainTopBar:
 
-        MDTextField:
-            id: ai_key
-            hint_text: "Ключ AI"
-            text: root.ai_key
-            size_hint_y: None
-            height: dp(48)
-            font_name: "Roboto"
-
-        MDLabel:
-            text: "ASR (выбор)"
-            size_hint_y: None
-            height: dp(24)
-            font_name: "Roboto"
-
-        BoxLayout:
-            orientation: "horizontal"
-            size_hint_y: None
-            height: dp(48)
-            spacing: dp(8)
-
-            MDRectangleFlatButton:
-                id: btn_vosk
-                text: "VOSK"
-                on_release: app.set_asr("VOSK")
-                size_hint_x: 1
-            MDRectangleFlatButton:
-                id: btn_whisper
-                text: "WHISPER"
-                on_release: app.set_asr("WHISPER")
-                size_hint_x: 1
-
-        BoxLayout:
-            orientation: "horizontal"
-            size_hint_y: None
-            height: dp(48)
-            spacing: dp(6)
-
-            MDTextField:
-                id: pv_key
-                hint_text: "Porcupine Access Key"
-                text: root.pv_key
-                font_name: "Roboto"
-
-            MDRectangleFlatButton:
-                text: "Сохранить"
-                size_hint_x: None
-                width: dp(100)
-                on_release: app.save_pv_key()
-
-
-        MDLabel:
-            text: "Файлы данных"
-            size_hint_y: None
-            height: dp(24)
-            font_name: "Roboto"
-
-        BoxLayout:
-            orientation: "horizontal"
-            size_hint_y: None
-            height: dp(48)
-            spacing: dp(8)
-
-            MDRectangleFlatButton:
-                text: "Выбрать titles"
-                on_release: app.pick_titles()
-
-            MDRectangleFlatButton:
-                text: "Выбрать tickets"
-                on_release: app.pick_tickets()
-
-        MDLabel:
-            text: "Базовые фразы (JSON)"
-            size_hint_y: None
-            height: dp(24)
-            font_name: "Roboto"
-
         ScrollView:
-            size_hint_y: 1
             do_scroll_x: False
             do_scroll_y: True
-            TextInput:
-                id: base_phrases
-                text: root.base_phrases
-                font_name: "Roboto"
-                font_size: "13sp"
+
+            BoxLayout:
+                orientation: "vertical"
                 size_hint_y: None
-                height: max(self.minimum_height, dp(220))
-                multiline: True
-                on_text: app.on_base_phrases_change(self, self.text)
+                height: self.minimum_height
+                spacing: dp(8)
+                padding: dp(8)
+
+                # Ключ AI
+                BoxLayout:
+                    orientation: "horizontal"
+                    size_hint_y: None
+                    height: dp(48)
+                    spacing: dp(6)
+                    MDTextField:
+                        id: ai_key
+                        hint_text: "Ключ AI"
+                        text: root.ai_key
+                        font_name: "Roboto"
+                    MDRectangleFlatButton:
+                        text: "Сохранить"
+                        size_hint_x: None
+                        width: dp(100)
+                        on_release: app.save_ai_key()
+
+                # Амплитуды (readonly)
+                BoxLayout:
+                    orientation: "horizontal"
+                    size_hint_y: None
+                    height: dp(48)
+                    spacing: dp(6)
+                    MDTextField:
+                        id: amplitude
+                        hint_text: "Amplitude"
+                        input_filter: "int"
+                        text: str(root.amplitude)
+                        font_name: "Roboto"
+                        readonly: True
+                    MDTextField:
+                        id: max_amplitude
+                        hint_text: "Max Amplitude"
+                        input_filter: "int"
+                        text: str(root.max_amplitude)
+                        font_name: "Roboto"
+                        readonly: True
+
+                # Остальные числовые настройки
+                BoxLayout:
+                    orientation: "horizontal"
+                    size_hint_y: None
+                    height: dp(48)
+                    spacing: dp(6)
+
+                    MDTextField:
+                        id: accuracy
+                        hint_text: "Accuracy"
+                        text: str(root.accuracy)
+                        input_filter: "int"
+                        font_name: "Roboto"
+                        on_text_validate: root.accuracy = int(self.text) if self.text else root.accuracy
+                        on_focus: root.accuracy = int(self.text) if not self.focus and self.text else root.accuracy
+
+                    MDTextField:
+                        id: hold_time
+                        hint_text: "Hold Time"
+                        text: str(root.hold_time)
+                        input_filter: "float"
+                        font_name: "Roboto"
+                        on_text_validate: root.hold_time = float(self.text) if self.text else root.hold_time
+                        on_focus: root.hold_time = float(self.text) if not self.focus and self.text else root.hold_time
+
+                    MDTextField:
+                        id: cooldown
+                        hint_text: "Cooldown"
+                        text: str(root.cooldown)
+                        input_filter: "float"
+                        font_name: "Roboto"
+                        on_text_validate: root.cooldown = float(self.text) if self.text else root.cooldown
+                        on_focus: root.cooldown = float(self.text) if not self.focus and self.text else root.cooldown
+
+                MDTextField:
+                    id: read_cooldown
+                    hint_text: "Reading cooldown"
+                    text: str(root.read_cooldown)
+                    input_filter: "int"
+                    font_name: "Roboto"
+                    on_text_validate: root.read_cooldown = int(self.text) if self.text else root.read_cooldown
+                    on_focus: root.read_cooldown = int(self.text) if not self.focus and self.text else root.read_cooldown
+
+
+                # Раздел "Файлы данных"
+                MDLabel:
+                    text: "Файлы данных"
+                    size_hint_y: None
+                    height: dp(24)
+                    font_name: "Roboto"
+
+                BoxLayout:
+                    orientation: "horizontal"
+                    size_hint_y: None
+                    height: dp(48)
+                    spacing: dp(8)
+                    MDRectangleFlatButton:
+                        text: "Выбрать titles"
+                        on_release: app.pick_titles()
+                    MDRectangleFlatButton:
+                        text: "Выбрать tickets"
+                        on_release: app.pick_tickets()
+
+                # Раздел "Базовые фразы"
+                MDLabel:
+                    text: "Базовые фразы (JSON)"
+                    size_hint_y: None
+                    height: dp(24)
+                    font_name: "Roboto"
+
+                TextInput:
+                    id: base_phrases
+                    text: root.base_phrases
+                    font_name: "Roboto"
+                    font_size: "13sp"
+                    size_hint_y: None
+                    height: max(self.minimum_height, dp(220))
+                    multiline: True
+                    on_text: app.on_base_phrases_change(self, self.text)
+
 
 <LogsTab>:
     canvas.before:

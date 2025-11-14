@@ -39,7 +39,7 @@ version = 0.1
 # comma separated e.g. requirements = sqlite3,kivyбpvporcupine,faster-whisper,piper-tts,
 requirements = python3,kivy,kivymd,numpy
 
-android.permissions = RECORD_AUDIO,INTERNET,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE
+android.permissions = RECORD_AUDIO,INTERNET,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE,MANAGE_EXTERNAL_STORAGE,BLUETOOTH,BLUETOOTH_ADMIN,BLUETOOTH_CONNECT,MODIFY_AUDIO_SETTINGS
 #android.add_src = ./models
 android.accept_sdk_license = True
 # (str) Custom source folders for requirements

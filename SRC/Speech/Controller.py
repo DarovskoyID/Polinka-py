@@ -15,12 +15,13 @@ from SRC.WakeWord.WakeWord import WakeWord
 
 
 class SpeechController:
-    def __init__(self):
+    def __init__(self, screen):
         # --- подсистемы ---
         self.tts = TTSManager()
         self.router = EventRouter()
         self.wake_listener = None
         self.vosk = None
+        self.screen = screen
 
         # --- состояния ---
         self._state = "IDLE"
@@ -41,7 +42,7 @@ class SpeechController:
             "default": 1.0
         }
         self.read_speed = self.speed_config["default"]
-        self.delay = 5  # базовая пауза между предложениями
+        self.delay = int(self.screen.ids.read_cooldown.text)  # базовая пауза между предложениями
 
         # --- события ---
         self._register_event_handlers()
@@ -51,7 +52,7 @@ class SpeechController:
 
     def start(self):
         self.vosk = Vosk()
-        self.wake_listener = WakeWord()
+        self.wake_listener = WakeWord(self.screen, int(self.screen.ids.accuracy.text), float(self.screen.ids.hold_time.text), float(self.screen.ids.cooldown.text))
         self.event_thread = threading.Thread(target=self._event_loop, daemon=True)
         self.event_thread.start()
 
@@ -193,6 +194,9 @@ class SpeechController:
         if hasattr(self, "current_sentence_index") and self.current_sentence_index > 0:
             self.current_sentence_index -= 1
             _log(f"[READ_TICKET] Повтор предложения {self.current_sentence_index}")
+            self.current_stop_event.set()
+            self.tts.clear()
+            self.current_stop_event.clear()
             self.tts.clear()
             for i in range(self.current_sentence_index, len(self.current_sentences)):
                 self.tts.say(self.current_sentences[i])
@@ -225,23 +229,35 @@ class SpeechController:
             _log(f"[ReadTitles] Читаем заголовок {i + 1}: {title}")
             self.tts.say(title)
 
+            # обычная пауза между заголовками
             t0 = time.time()
             while time.time() - t0 < self.delay:
                 if self.current_stop_event.is_set() or self._state not in ["READ_TITLES", "CONFIRM_TITLE"]:
                     break
                 time.sleep(0.05)
 
+            # === момент подтверждения билета ===
             if self._state == "CONFIRM_TITLE":
                 _log(f"[ReadTitles] Подтверждаем билет {i + 1}: {title}")
                 self.tts.say(f"{title}. Подтверждаете билет?")
-                t0_confirm = time.time()
-                while time.time() - t0_confirm < self.delay:
+
+                # ждём либо pip-событие, либо истечение времени
+                start_wait = time.time()
+                confirmed = False
+
+                while time.time() - start_wait < self.delay * 3:  # до 3 задержек на подтверждение
                     if self.current_stop_event.is_set() or self._state in ["READ_TICKET", "IDLE"]:
+                        confirmed = True  # значит, пойман pip (1 или 2)
                         break
                     time.sleep(0.05)
 
-            if self._state == "CONFIRM_TITLE":
-                self._state = "READ_TITLES"
+                if not confirmed:
+                    _log(f"[ReadTitles] Нет подтверждения для билета {i + 1}")
+                    self._state = "READ_TITLES"
+                else:
+                    _log(f"[ReadTitles] Билет {i + 1} подтверждён")
+                    if self._state == "CONFIRM_TITLE":
+                        self._state = "READ_TITLES"
 
         self.reading_titles = False
         if self._state != "READ_TICKET" and self._state != "SPEEDMODE":

@@ -1,3 +1,7 @@
 {
-    "ACCESS_KEY_PV": "uHmVJfEIx6ynqIPc4DeQAiLClCio/4FtDwkqUu3p2yehntyj3USUYQ=="
+    "ACCESS_KEY_PV": "uHmVJfEIx6ynqIPc4DeQAiLClCio/4FtDwkqUu3p2yehntyj3USUYQ==",
+    "accuracy": 5000,
+    "hold_time": 0.1,
+    "cooldown": 0.33,
+    "read_cooldown" : 3
 }
