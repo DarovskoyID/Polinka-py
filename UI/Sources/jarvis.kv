@@ -168,6 +168,15 @@
                         on_text_validate: root.cooldown = float(self.text) if self.text else root.cooldown
                         on_focus: root.cooldown = float(self.text) if not self.focus and self.text else root.cooldown
 
+                    MDTextField:
+                        id: wait_time
+                        hint_text: "wait_time"
+                        text: str(root.wait_time)
+                        input_filter: "float"
+                        font_name: "Roboto"
+                        on_text_validate: root.wait_time = float(self.text) if self.text else root.wait_time
+                        on_focus: root.wait_time = float(self.text) if not self.focus and self.text else root.wait_time
+
                 MDTextField:
                     id: read_cooldown
                     hint_text: "Reading cooldown"

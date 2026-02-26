@@ -50,6 +50,7 @@ class SettingsTab(Screen):
     hold_time = NumericProperty(0.1)
     cooldown = NumericProperty(0.33)
     read_cooldown = NumericProperty(3)
+    wait_time = NumericProperty(1.9)
 
     def on_read_cooldown(self, instance, value):
         app = MDApp.get_running_app()
@@ -340,6 +341,7 @@ class JarvisApp(MDApp):
             settings.hold_time = data.get("hold_time", settings.hold_time)
             settings.cooldown = data.get("cooldown", settings.cooldown)
             settings.read_cooldown = data.get("read_cooldown", settings.read_cooldown)
+            settings.wait_time = data.get("wait_time", settings.wait_time)
 
             # Если в KV есть TextInput — обновим текст
             ids = settings.ids
@@ -351,6 +353,8 @@ class JarvisApp(MDApp):
                 ids.cooldown.text = str(settings.cooldown)
             if "read_cooldown" in ids:
                 ids.read_cooldown.text = str(settings.read_cooldown)
+            if "wait_time" in ids:
+                ids.wait_time.text = str(settings.wait_time)
         except Exception as e:
             _log(f"ERR loading sound settings: {e}")
 
@@ -372,6 +376,7 @@ class JarvisApp(MDApp):
         data["hold_time"] = float(settings.hold_time)
         data["cooldown"] = float(settings.cooldown)
         data["read_cooldown"] = int(settings.read_cooldown)
+        data["wait_time"] = float(settings.wait_time)
 
         try:
             with open(cfg_path, "w", encoding="utf-8") as f:

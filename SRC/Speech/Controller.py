@@ -27,9 +27,11 @@ class SpeechController:
         self._state = "IDLE"
         self._adjusting_speed = False
         self.current_sentence_index = None
+        self.current_ticket_index = None
         self.current_sentences = None
         self.reading_titles = False
         self.reading_ticket = False
+        self.last_title_index = 0
         self.ticket_texts = None
         self.current_stop_event = threading.Event()
         self.read_lock = threading.Lock()
@@ -37,9 +39,9 @@ class SpeechController:
         # --- параметры скорости ---
         self.speed_config = {
             "step": 0.1,
-            "min": 0.5,
+            "min": 0.1,
             "max": 2.0,
-            "default": 1.0
+            "default": 0.5
         }
         self.read_speed = self.speed_config["default"]
         self.delay = int(self.screen.ids.read_cooldown.text)  # базовая пауза между предложениями
@@ -66,6 +68,7 @@ class SpeechController:
         self.router.on("pip:2", self._on_pip_2)
         self.router.on("pip:3", self._on_pip_3)
         self.router.on("pip:4", self._on_pip_4)
+        self.router.on("pip:5", self._on_pip_5)
 
     # =======================================================
     # Цикл событий
@@ -106,7 +109,16 @@ class SpeechController:
             self._enter_speed_mode(1)
 
         elif self._state == "READ_TITLES":
-            self._state = "CONFIRM_TITLE"
+
+            if self.last_title_index > 0:
+
+                self.last_title_index -= 1
+
+            else:
+
+                self.last_title_index = 0
+
+            self._restart_titles()
 
         elif self._state == "CONFIRM_TITLE":
             self._state = "READ_TICKET"
@@ -124,14 +136,19 @@ class SpeechController:
         if self._state == "SPEEDMODE":
             self._enter_speed_mode(2)
 
-        elif self._state == "IDLE":
-            _log("[FSM] Запуск чтения заголовков")
-            self._state = "READ_TITLES"
-            threading.Thread(target=self._read_titles, daemon=True).start()
-
         elif self._state == "CONFIRM_TITLE":
             self._state = "READ_TITLES"
             threading.Thread(target=self._read_titles, daemon=True).start()
+
+        elif self._state == "READ_TITLES":
+            self._state = "CONFIRM_TITLE"
+
+
+        elif self._state == "IDLE":
+            _log("[FSM] Запуск чтения заголовков")
+            self._state = "READ_TITLES"
+            self.last_title_index = 0
+            self._restart_titles()
 
         elif self._state == "READ_TICKET":
             _log("[READ_TICKET] Возврат к заголовкам")
@@ -158,6 +175,11 @@ class SpeechController:
         self._state = "SPEEDMODE"
         _log(f"[Speed] Настройка скорости активирована (текущая = {self.read_speed:.2f})")
         self.tts.say(f"Настройка скорости. Текущая {self.read_speed:.1f}")
+
+    def _on_pip_5(self, *_):
+        self._state = "IDLE"
+        _log(f"[Warning] Аварийный сброс")
+        self.tts.say(f"Аварийный сброс")
 
     # =======================================================
     # Управление скоростью (🔒 защищено мьютексом)
@@ -203,65 +225,66 @@ class SpeechController:
         else:
             _log("[READ_TICKET] Уже в начале билета")
 
+
     # =======================================================
     # Чтение названий билетов
     # =======================================================
+    def _restart_titles(self):
+        self.current_stop_event.set()
+        time.sleep(0.1)
+        self.current_stop_event.clear()
+        threading.Thread(target=self._read_titles, daemon=True).start()
+
     def _read_titles(self):
-        with self.read_lock:
-            if self.reading_titles or self.reading_ticket:
-                return
-            self.reading_titles = True
+        _log("START _read_titles")
 
         try:
             with open(BILETS_NAME_FILE, encoding="utf-8") as f:
-                self.ticket_titles = [line.strip() for line in f if line.strip()]
+                ticket_titles = [line.strip() for line in f if line.strip()]
         except Exception as e:
             _log(f"[ReadTitles] {e}")
-            self.reading_titles = False
             self._state = "IDLE"
             return
 
-        for i, title in enumerate(self.ticket_titles):
-            if self.current_stop_event.is_set() or self._state not in ["READ_TITLES", "CONFIRM_TITLE"]:
-                break
+        for i in range(self.last_title_index, len(ticket_titles)):
+
+            if self.current_stop_event.is_set():
+                _log("STOP EVENT → выход из чтения")
+                return
+
+            if self._state not in ["READ_TITLES", "CONFIRM_TITLE"]:
+                _log("STATE CHANGED → выход из чтения")
+                return
 
             self.last_title_index = i
-            _log(f"[ReadTitles] Читаем заголовок {i + 1}: {title}")
+            title = ticket_titles[i]
+
+            _log(f"[ReadTitles] {i + 1}: {title}")
             self.tts.say(title)
 
-            # обычная пауза между заголовками
+            # пауза с возможностью мгновенной остановки
             t0 = time.time()
             while time.time() - t0 < self.delay:
-                if self.current_stop_event.is_set() or self._state not in ["READ_TITLES", "CONFIRM_TITLE"]:
-                    break
+                if self.current_stop_event.is_set():
+                    return
                 time.sleep(0.05)
 
-            # === момент подтверждения билета ===
+            # режим подтверждения
             if self._state == "CONFIRM_TITLE":
-                _log(f"[ReadTitles] Подтверждаем билет {i + 1}: {title}")
                 self.tts.say(f"{title}. Подтверждаете билет?")
 
-                # ждём либо pip-событие, либо истечение времени
                 start_wait = time.time()
-                confirmed = False
-
-                while time.time() - start_wait < self.delay * 3:  # до 3 задержек на подтверждение
-                    if self.current_stop_event.is_set() or self._state in ["READ_TICKET", "IDLE"]:
-                        confirmed = True  # значит, пойман pip (1 или 2)
-                        break
+                while time.time() - start_wait < self.delay * 3:
+                    if self.current_stop_event.is_set():
+                        return
+                    if self._state in ["READ_TICKET", "IDLE"]:
+                        return
                     time.sleep(0.05)
 
-                if not confirmed:
-                    _log(f"[ReadTitles] Нет подтверждения для билета {i + 1}")
-                    self._state = "READ_TITLES"
-                else:
-                    _log(f"[ReadTitles] Билет {i + 1} подтверждён")
-                    if self._state == "CONFIRM_TITLE":
-                        self._state = "READ_TITLES"
+                self._state = "READ_TITLES"
 
-        self.reading_titles = False
-        if self._state != "READ_TICKET" and self._state != "SPEEDMODE":
-            self._state = "IDLE"
+        _log("END _read_titles")
+        self._state = "IDLE"
 
     # =======================================================
     # Чтение билета (потоковое)

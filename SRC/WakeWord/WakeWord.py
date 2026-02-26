@@ -28,7 +28,7 @@ _SELECTED_DEVICE = None
 
 
 class WakeWord:
-    def __init__(self, screen, accuracy=5000, hold_time=0.10, cooldown=0.33, sco_wait=3.0):
+    def __init__(self, screen, accuracy=5000, hold_time=0.10, cooldown=0.33, sco_wait=3.0, wait_time=1.9):
         global _SELECTED_DEVICE
 
         self.screen = screen
@@ -39,6 +39,7 @@ class WakeWord:
         self.accuracy = accuracy
         self.hold_time = hold_time
         self.cooldown = cooldown
+        self.wait_time = wait_time
         self.sco_wait = sco_wait
 
         self.sample_rate = 16000
@@ -151,7 +152,7 @@ class WakeWord:
         # --- 9. Поток ---
         self.audio_thread = threading.Thread(
             target=self._audio_loop,
-            args=(accuracy, hold_time, cooldown),
+            args=(accuracy, hold_time, cooldown, wait_time),
             daemon=True
         )
         self.audio_thread.start()
@@ -222,7 +223,7 @@ class WakeWord:
             _log(f"SCO error: {e}")
             return False
 
-    def _audio_loop(self, accuracy, hold_time, cooldown):
+    def _audio_loop(self, accuracy, hold_time, cooldown, wait_time):
         while self.running.is_set():
             try:
                 buf = bytearray(self.frame_length * 2)
@@ -255,12 +256,16 @@ class WakeWord:
                             self._last_peak_time = now
                         self._loud_start = None
                 else:
-                    if self._peak_count > 0 and now - self._last_peak_time > cooldown:
-                        self.event_queue.put(("pip", self._peak_count))
-                        self._last_event_time = now
-                        self._peak_count = 0
                     self._loud_start = None
 
+                # если давно не было пиков — фиксируем событие
+                if (
+                        self._peak_count > 0
+                        and now - self._last_peak_time > wait_time
+                ):
+                    self.event_queue.put(("pip", self._peak_count))
+                    self._last_event_time = now
+                    self._peak_count = 0
             except Exception as e:
                 _log(f"[AudioLoop] Error: {e}")
                 time.sleep(0.1)
