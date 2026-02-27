@@ -213,15 +213,29 @@ class SpeechController:
     # Повтор предложения в билете
     # =======================================================
     def _repeat_or_restart_sentence(self):
-        if hasattr(self, "current_sentence_index") and self.current_sentence_index > 0:
+        if (
+                self.current_sentence_index is not None
+                and self.current_sentence_index > 0
+        ):
             self.current_sentence_index -= 1
             _log(f"[READ_TICKET] Повтор предложения {self.current_sentence_index}")
+
+            # останавливаем старый поток
             self.current_stop_event.set()
             self.tts.clear()
+            time.sleep(0.1)
+
+            # сбрасываем флаг
+            self.reading_ticket = False
             self.current_stop_event.clear()
-            self.tts.clear()
-            for i in range(self.current_sentence_index, len(self.current_sentences)):
-                self.tts.say(self.current_sentences[i])
+
+            # запускаем заново ТОЛЬКО если состояние правильное
+            if self._state == "READ_TICKET":
+                self.reading_ticket = True
+                threading.Thread(
+                    target=self._read_ticket_sentences,
+                    daemon=True
+                ).start()
         else:
             _log("[READ_TICKET] Уже в начале билета")
 
@@ -318,24 +332,41 @@ class SpeechController:
         threading.Thread(target=self._read_ticket_sentences, daemon=True).start()
 
     def _read_ticket_sentences(self):
-        while (
-            self._state == "READ_TICKET"
-            and not self.current_stop_event.is_set()
-            and self.current_sentence_index < len(self.current_sentences)
-        ):
+
+        while True:
+
+            if self._state != "READ_TICKET":
+                break
+
+            if self.current_stop_event.is_set():
+                break
+
+            if self.current_sentence_index >= len(self.current_sentences):
+                break
+
             sentence = self.current_sentences[self.current_sentence_index]
             _log(f"[ReadTicket] [{self.current_sentence_index + 1}/{len(self.current_sentences)}] {sentence}")
             self.tts.say(sentence)
 
-            # задержка между предложениями с учётом скорости
-            time.sleep(self.delay / self.read_speed)
+            # управляемая пауза
+            pause = self.delay / self.read_speed
+            t0 = time.time()
+
+            while time.time() - t0 < pause:
+                if self.current_stop_event.is_set():
+                    return
+                if self._state != "READ_TICKET":
+                    return
+                time.sleep(0.03)
 
             self.current_sentence_index += 1
 
-        _log("[ReadTicket] Чтение билета завершено")
-        self.reading_ticket = False
-        if self._state == "READ_TICKET":
-            self._state = "IDLE"
+        # логируем завершение ТОЛЬКО если реально дошли до конца
+        if self.current_sentence_index >= len(self.current_sentences):
+            _log("[ReadTicket] Чтение билета завершено")
+            self.reading_ticket = False
+            if self._state == "READ_TICKET":
+                self._state = "IDLE"
 
     # =======================================================
     # Управление состоянием
@@ -343,9 +374,15 @@ class SpeechController:
     def _stop_all_readings(self):
         self.current_stop_event.set()
         self.tts.clear()
-        self.tts.say("Чтение остановлено")
+
+        self.reading_ticket = False  # ← ВОТ ЭТО ОБЯЗАТЕЛЬНО
+        self.reading_titles = False  # на всякий случай
+
         self._state = "IDLE"
         self._adjusting_speed = False
+
+        self.tts.say("Чтение остановлено")
+
         self.current_stop_event.clear()
 
     def stop(self):
