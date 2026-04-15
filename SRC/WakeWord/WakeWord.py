@@ -19,6 +19,9 @@ PythonActivity = autoclass('org.kivy.android.PythonActivity')
 BluetoothAdapter = autoclass('android.bluetooth.BluetoothAdapter')
 BluetoothProfile = autoclass('android.bluetooth.BluetoothProfile')
 BluetoothHeadset = autoclass('android.bluetooth.BluetoothHeadset')
+PowerManager = autoclass('android.os.PowerManager')
+Context = autoclass('android.content.Context')
+PythonActivity = autoclass('org.kivy.android.PythonActivity')
 
 # permission
 RECORD_AUDIO = "android.permission.RECORD_AUDIO"
@@ -53,6 +56,50 @@ class WakeWord:
         activity = PythonActivity.mActivity
         self.audio_manager = cast(AudioManager, activity.getSystemService(Context.AUDIO_SERVICE))
 
+        # ===== WAKE LOCK =====
+        pm = activity.getSystemService(Context.POWER_SERVICE)
+
+        self.wakelock = pm.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            "MyApp::MicLock"
+        )
+
+        self.wakelock.acquire(3*60*60*1000)
+        _log("WakeLock acquired")
+        # =====================
+        # ===== WIFI LOCK =====
+        WifiManager = autoclass('android.net.wifi.WifiManager')
+
+        wifi = activity.getSystemService(Context.WIFI_SERVICE)
+
+        self.wifilock = wifi.createWifiLock(
+            WifiManager.WIFI_MODE_FULL_HIGH_PERF,
+            "MyApp::WifiLock"
+        )
+
+        self.wifilock.acquire()
+
+        _log("WifiLock acquired")
+        # ===== WAKE LOCK для CPU и экрана =====
+        pm = activity.getSystemService(Context.POWER_SERVICE)
+
+        # CPU всегда активен
+        self.cpu_wakelock = pm.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            "MyApp::CPULock"
+        )
+        self.cpu_wakelock.acquire()
+        _log("CPU WakeLock acquired")
+
+        # Экран минимально яркий, чтобы телефон не усыплял AudioRecord
+        self.screen_wakelock = pm.newWakeLock(
+            PowerManager.SCREEN_DIM_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP,
+            "MyApp::ScreenLock"
+        )
+        self.screen_wakelock.acquire()
+        _log("Screen WakeLock acquired")
+        # ======================================
+        # =====================
         # --- 1. Логируем все устройства ---
         try:
             devices = self.audio_manager.getDevices(AudioManager.GET_DEVICES_INPUTS)
@@ -288,3 +335,28 @@ class WakeWord:
             self.audio_manager.setMode(AudioManager.MODE_NORMAL)
         except:
             pass
+
+        try:
+            if hasattr(self, "wakelock") and self.wakelock.isHeld():
+                self.wakelock.release()
+                _log("WakeLock released")
+        except:
+            pass
+
+        try:
+            if hasattr(self, "wifilock") and self.wifilock.isHeld():
+                self.wifilock.release()
+                _log("WifiLock released")
+        except:
+            pass
+
+        try:
+            if hasattr(self, "cpu_wakelock") and self.cpu_wakelock.isHeld():
+                self.cpu_wakelock.release()
+                _log("CPU WakeLock released")
+
+            if hasattr(self, "screen_wakelock") and self.screen_wakelock.isHeld():
+                self.screen_wakelock.release()
+                _log("Screen WakeLock released")
+        except Exception as e:
+            _log(f"Release WakeLock error: {e}")

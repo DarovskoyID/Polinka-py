@@ -46,3 +46,9 @@ class TTSManager:
         self.queue.put(None)
         self.thread.join(timeout=1)
         self.tts.shutdown()
+
+    def isSpeaking(self):
+        try:
+            return self.tts.isSpeaking()
+        except:
+            return False

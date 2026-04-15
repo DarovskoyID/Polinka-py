@@ -243,6 +243,28 @@ class SpeechController:
     # =======================================================
     # Чтение названий билетов
     # =======================================================
+    def _wait_tts(self):
+
+        # ждём пока начнёт говорить
+        start = time.time()
+        while not self.tts.isSpeaking():
+            if self.current_stop_event.is_set():
+                return False
+
+            # защита чтобы не зависнуть если TTS не стартанул
+            if time.time() - start > 2:
+                break
+
+            time.sleep(0.02)
+
+        # ждём пока закончит говорить
+        while self.tts.isSpeaking():
+            if self.current_stop_event.is_set():
+                return False
+            time.sleep(0.05)
+
+        return True
+
     def _restart_titles(self):
         self.current_stop_event.set()
         time.sleep(0.1)
@@ -274,9 +296,14 @@ class SpeechController:
             title = ticket_titles[i]
 
             _log(f"[ReadTitles] {i + 1}: {title}")
+
             self.tts.say(title)
 
-            # пауза с возможностью мгновенной остановки
+            # ✅ ждём пока закончится речь
+            if not self._wait_tts():
+                return
+
+            # ✅ теперь delay после окончания речи
             t0 = time.time()
             while time.time() - t0 < self.delay:
                 if self.current_stop_event.is_set():
@@ -285,14 +312,21 @@ class SpeechController:
 
             # режим подтверждения
             if self._state == "CONFIRM_TITLE":
+
                 self.tts.say(f"{title}. Подтверждаете билет?")
+
+                if not self._wait_tts():
+                    return
 
                 start_wait = time.time()
                 while time.time() - start_wait < self.delay * 3:
+
                     if self.current_stop_event.is_set():
                         return
+
                     if self._state in ["READ_TICKET", "IDLE"]:
                         return
+
                     time.sleep(0.05)
 
                 self._state = "READ_TITLES"
